@@ -1,0 +1,98 @@
+### Node ###
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Optional npm cache folder
+.npm/
+
+### Build outputs ###
+dist/
+build/
+coverage/
+.nyc_output/
+out/
+
+### Runtime data ###
+/pids/
+*.pid
+*.seed
+*.pid.lock
+logs/
+*.log
+
+### Env files / secrets ###
+.env
+.env.*
+!.env.example
+
+### OS-specific ###
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+
+### IDEs / Editors ###
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+.history/
+
+### Misc caches ###
+.cache/
+.parcel-cache/
+.sass-cache/
+/.next/
+.nuxt/
+.vercel/
+.serverless/
+.turbo/
+.turbo/cache/
+
+### TypeScript ###
+*.tsbuildinfo
+
+### Logs and Debug ###
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+debug.log
+
+### Testing ###
+coverage/
+coverage-final.json
+.nyc_output/
+jest-cache/
+test-results/
+
+### Database ###
+*.sqlite
+*.sqlite3
+*.db
+
+### SSL ###
+*.pem
+*.key
+
+### Generated files ###
+dist/
+lib/
+es/
+build/
+
+### Lock files (leave lockfile if you want consistent installs) ###
+# package-lock.json
+# yarn.lock
+
+### OS temp ###
+/tmp
+/temp
+
+### Other ###
+.vscode-test/
+.eslintcache
+.swp
+*.swp
