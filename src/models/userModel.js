@@ -27,6 +27,29 @@ const User = {
         return result.rows[0] || null;
     },
 
+    findAll: async () => {
+        const query = `
+            SELECT id, full_name, email, phone_number, address, role, status
+            FROM ${USER_TABLE}
+            ORDER BY role ASC, id ASC
+        `;
+
+        const result = await pool.query(query);
+        return result.rows;
+    },
+
+    findAllByRole: async (role) => {
+        const query = `
+            SELECT id, full_name, email, phone_number, address, role, status
+            FROM ${USER_TABLE}
+            WHERE role = $1
+            ORDER BY id ASC
+        `;
+
+        const result = await pool.query(query, [role]);
+        return result.rows;
+    },
+
     create: async (userData) => {
         const {
             full_name,
@@ -34,7 +57,7 @@ const User = {
             password,
             phone_number,
             address,
-            role = 'Customer',
+            role = 'user',
             status = 'Active',
         } = userData;
 

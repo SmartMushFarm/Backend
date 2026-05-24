@@ -1,6 +1,5 @@
 const express = require('express');
 const authController = require('../controllers/authController');
-const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
@@ -71,13 +70,22 @@ const router = express.Router();
  *           example: Ho Chi Minh
  *         role:
  *           type: string
- *           example: Customer
+ *           example: user
  *         status:
  *           type: string
  *           example: Active
  *         created_at:
  *           type: string
  *           format: date-time
+ *     UsersResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         users:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/UserResponse'
  */
 
 /**
@@ -133,15 +141,11 @@ router.post('/login', authController.login);
  *   get:
  *     tags:
  *       - Auth
- *     summary: Get current logged in user
- *     security:
- *       - bearerAuth: []
+ *     summary: Get all users from User table
  *     responses:
  *       200:
- *         description: Current user information
- *       401:
- *         description: Unauthorized
+ *         description: List of all users
  */
-router.get('/me', authMiddleware, authController.me);
+router.get('/me', authController.me);
 
 module.exports = router;
