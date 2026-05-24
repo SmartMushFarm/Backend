@@ -1,6 +1,7 @@
 require("dotenv").config({ override: true });
 
 const app = require("./app");
+const { pool } = require('./config/db');
 
 const PORT = process.env.PORT || 5000;
 
@@ -12,7 +13,7 @@ const BASE_URL =
 ====================== */
 (async () => {
   try {
-    // Đã loại bỏ kết nối Database (connectDB) theo yêu cầu
+    await pool.query('SELECT 1');
 
     app.listen(PORT, () => {
       console.log(`
