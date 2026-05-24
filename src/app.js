@@ -14,7 +14,11 @@ app.get('/', (req, res) => {
     res.json({ message: 'SmartMushFarm API is running' });
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+        persistAuthorization: true,
+    },
+}));
 app.use('/api', rootRouter);
 
 module.exports = app;
