@@ -11,7 +11,7 @@ app.use(express.json());
 
 // Routes
 app.get('/', (req, res) => {
-    res.json({ message: 'SmartMushFarm API is running' });
+    res.json({ message: 'Backend API is running' });
 });
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
