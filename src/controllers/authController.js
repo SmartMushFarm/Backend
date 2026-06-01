@@ -42,16 +42,7 @@ const authController = {
 
     me: async (req, res) => {
         try {
-<<<<<<< HEAD
-            const user = await authService.getCurrentUser(req.user.id);
 
-            return res.status(200).json({
-                success: true,
-                user,
-            });
-        } catch (error) {
-            console.error('Error fetching current user:', error);
-=======
             const users = await authService.getAllUsers();
 
             return res.status(200).json({
@@ -60,7 +51,7 @@ const authController = {
             });
         } catch (error) {
             console.error('Error fetching users:', error);
->>>>>>> khanh
+
             return sendError(res, error);
         }
     },

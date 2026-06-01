@@ -27,8 +27,6 @@ const User = {
         return result.rows[0] || null;
     },
 
-<<<<<<< HEAD
-=======
     findAll: async () => {
         const query = `
             SELECT id, full_name, email, phone_number, address, role, status
@@ -52,7 +50,6 @@ const User = {
         return result.rows;
     },
 
->>>>>>> khanh
     create: async (userData) => {
         const {
             full_name,
@@ -60,11 +57,7 @@ const User = {
             password,
             phone_number,
             address,
-<<<<<<< HEAD
-            role = 'Customer',
-=======
             role = 'user',
->>>>>>> khanh
             status = 'Active',
         } = userData;
 

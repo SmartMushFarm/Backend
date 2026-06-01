@@ -1,7 +1,7 @@
 require("dotenv").config({ override: true });
 
 const app = require("./app");
-
+require("./services/mqttService");
 const PORT = process.env.PORT || 5000;
 
 const BASE_URL =
