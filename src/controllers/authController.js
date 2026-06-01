@@ -42,14 +42,16 @@ const authController = {
 
     me: async (req, res) => {
         try {
-            const user = await authService.getCurrentUser(req.user.id);
+
+            const users = await authService.getAllUsers();
 
             return res.status(200).json({
                 success: true,
-                user,
+                users,
             });
         } catch (error) {
-            console.error('Error fetching current user:', error);
+            console.error('Error fetching users:', error);
+
             return sendError(res, error);
         }
     },

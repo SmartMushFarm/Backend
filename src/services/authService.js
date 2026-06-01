@@ -42,7 +42,7 @@ const authService = {
             password: hashedPassword,
             phone_number,
             address,
-            role: 'Customer',
+            role: 'user',
             status: 'Active',
         });
 
@@ -94,6 +94,10 @@ const authService = {
         }
 
         return user;
+    },
+
+    getAllUsers: async () => {
+        return User.findAll();
     },
 };
 

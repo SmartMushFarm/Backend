@@ -12,4 +12,11 @@ const pool = new Pool({
     },
 });
 
-module.exports = { pool };
+const query = (text, params) => {
+    return pool.query(text, params);
+};
+
+module.exports = {
+    pool,
+    query,
+};
