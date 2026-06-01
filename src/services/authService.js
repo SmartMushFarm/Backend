@@ -42,11 +42,7 @@ const authService = {
             password: hashedPassword,
             phone_number,
             address,
-<<<<<<< HEAD
             role: 'Customer',
-=======
-            role: 'user',
->>>>>>> khanh
             status: 'Active',
         });
 
@@ -99,13 +95,6 @@ const authService = {
 
         return user;
     },
-<<<<<<< HEAD
-=======
-
-    getAllUsers: async () => {
-        return User.findAll();
-    },
->>>>>>> khanh
 };
 
 module.exports = authService;
