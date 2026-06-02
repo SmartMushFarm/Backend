@@ -24,12 +24,12 @@ const Maintenance = {
         const result = await pool.query(
             `SELECT mr.*,
                 d.device_name, d.current_temperature, d.current_humidity,
-                u.full_name as user_name, u.email as user_email, u.phone_number as user_phone,
-                t.full_name as technician_name
+                u.name as user_name, u.email as user_email, u.phone as user_phone,
+                t.name as technician_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
-             JOIN "User" u ON mr.user_id = u.id
-             LEFT JOIN "User" t ON mr.technician_id = t.id
+             JOIN users u ON mr.user_id = u.id
+             LEFT JOIN users t ON mr.technician_id = t.id
              WHERE mr.id = $1`,
             [id]
         );
@@ -40,11 +40,11 @@ const Maintenance = {
         const { status } = filters;
         const where = status ? `WHERE mr.status = '${status}'` : '';
         const result = await pool.query(
-            `SELECT mr.*, d.device_name, u.full_name as user_name, t.full_name as technician_name
+            `SELECT mr.*, d.device_name, u.name as user_name, t.name as technician_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
-             JOIN "User" u ON mr.user_id = u.id
-             LEFT JOIN "User" t ON mr.technician_id = t.id
+             JOIN users u ON mr.user_id = u.id
+             LEFT JOIN users t ON mr.technician_id = t.id
              ${where}
              ORDER BY mr.created_at DESC`
         );
@@ -53,10 +53,10 @@ const Maintenance = {
 
     findByTechnicianId: async (technicianId) => {
         const result = await pool.query(
-            `SELECT mr.*, d.device_name, u.full_name as user_name
+            `SELECT mr.*, d.device_name, u.name as user_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
-             JOIN "User" u ON mr.user_id = u.id
+             JOIN users u ON mr.user_id = u.id
              WHERE mr.technician_id = $1
              ORDER BY mr.created_at DESC`,
             [technicianId]

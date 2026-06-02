@@ -19,14 +19,14 @@ const createHttpError = (status, message) => {
 
 const authService = {
     register: async (payload) => {
-        const full_name = (payload.full_name || '').trim();
+        const name = (payload.name || payload.full_name || '').trim();
         const email = (payload.email || '').trim().toLowerCase();
         const password = payload.password || '';
-        const phone_number = (payload.phone_number || '').trim();
+        const phone = (payload.phone || payload.phone_number || '').trim();
         const address = (payload.address || '').trim();
 
-        if (!full_name || !email || !password) {
-            throw createHttpError(400, 'full_name, email and password are required');
+        if (!name || !email || !password) {
+            throw createHttpError(400, 'name, email and password are required');
         }
 
         const existingUser = await User.findByEmail(email);
@@ -37,10 +37,10 @@ const authService = {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const createdUser = await User.create({
-            full_name,
+            name,
             email,
             password: hashedPassword,
-            phone_number,
+            phone,
             address,
             role: 'user',
             status: 'Active',

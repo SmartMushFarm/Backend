@@ -61,9 +61,9 @@ const Order = {
         const { status } = filters;
         const conditions = status ? `WHERE o.status = '${status}'` : '';
         const result = await pool.query(
-            `SELECT o.*, u.full_name as user_name, u.email as user_email
+            `SELECT o.*, u.name as user_name, u.email as user_email
              FROM orders o
-             JOIN "User" u ON o.user_id = u.id
+             JOIN users u ON o.user_id = u.id
              ${conditions}
              ORDER BY o.created_at DESC`
         );

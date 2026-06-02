@@ -19,11 +19,11 @@ const router = express.Router();
  *     AuthRegisterInput:
  *       type: object
  *       required:
- *         - full_name
+ *         - name
  *         - email
  *         - password
  *       properties:
- *         full_name:
+ *         name:
  *           type: string
  *           example: Nguyen Van A
  *         email:
@@ -33,7 +33,7 @@ const router = express.Router();
  *         password:
  *           type: string
  *           example: 123456
- *         phone_number:
+ *         phone:
  *           type: string
  *           example: 0123456789
  *         address:
@@ -58,13 +58,13 @@ const router = express.Router();
  *         id:
  *           type: integer
  *           example: 1
- *         full_name:
+ *         name:
  *           type: string
  *           example: Nguyen Van A
  *         email:
  *           type: string
  *           example: vana@gmail.com
- *         phone_number:
+ *         phone:
  *           type: string
  *           example: 0123456789
  *         address:
@@ -104,10 +104,10 @@ const router = express.Router();
  *           schema:
  *             $ref: '#/components/schemas/AuthRegisterInput'
  *           example:
- *             full_name: Nguyen Van A
+ *             name: Nguyen Van A
  *             email: vana@gmail.com
  *             password: "123456"
- *             phone_number: "0123456789"
+ *             phone: "0123456789"
  *             address: Ho Chi Minh
  *     responses:
  *       201:

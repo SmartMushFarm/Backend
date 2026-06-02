@@ -1,11 +1,12 @@
 const { pool } = require('../config/db');
 
-const USER_TABLE = '"User"';
+// Use lowercase unquoted table name 'users' to match typical Postgres conventions
+const USER_TABLE = 'users';
 
 const User = {
     findByEmail: async (email) => {
         const query = `
-            SELECT id, full_name, email, password, phone_number, address, role, status
+            SELECT id, name, email, password, phone, address, role, status
             FROM ${USER_TABLE}
             WHERE LOWER(email) = LOWER($1)
             LIMIT 1
@@ -17,7 +18,7 @@ const User = {
 
     findById: async (id) => {
         const query = `
-            SELECT id, full_name, email, phone_number, address, role, status
+            SELECT id, name, email, phone, address, role, status
             FROM ${USER_TABLE}
             WHERE id = $1
             LIMIT 1
@@ -29,7 +30,7 @@ const User = {
 
     findAll: async () => {
         const query = `
-            SELECT id, full_name, email, phone_number, address, role, status
+            SELECT id, name, email, phone, address, role, status
             FROM ${USER_TABLE}
             ORDER BY role ASC, id ASC
         `;
@@ -40,7 +41,7 @@ const User = {
 
     findAllByRole: async (role) => {
         const query = `
-            SELECT id, full_name, email, phone_number, address, role, status
+            SELECT id, name, email, phone, address, role, status
             FROM ${USER_TABLE}
             WHERE role = $1
             ORDER BY id ASC
@@ -55,7 +56,7 @@ const User = {
             UPDATE ${USER_TABLE}
             SET status = $1
             WHERE id = $2
-            RETURNING id, full_name, email, phone_number, address, role, status
+            RETURNING id, name, email, phone, address, role, status
         `;
         const result = await pool.query(query, [status, id]);
         return result.rows[0] || null;
@@ -63,22 +64,33 @@ const User = {
 
     create: async (userData) => {
         const {
-            full_name,
+            name,
             email,
             password,
-            phone_number,
+            phone,
             address,
             role = 'user',
             status = 'Active',
         } = userData;
 
+        // Normalize role to match DB allowed values.
+        // Map common variants to the DB values (e.g. 'user' -> 'Customer').
+        const normalizedRole = (() => {
+            const r = (role || '').toString().trim().toLowerCase();
+            if (!r) return 'Customer';
+            if (['user', 'customer'].includes(r)) return 'Customer';
+            if (['admin', 'administrator'].includes(r)) return 'Admin';
+            // Fallback: Title case unknown value
+            return r.charAt(0).toUpperCase() + r.slice(1);
+        })();
+
         const query = `
-            INSERT INTO ${USER_TABLE} (full_name, email, password, phone_number, address, role, status)
+            INSERT INTO ${USER_TABLE} (name, email, password, phone, address, role, status)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, full_name, email, phone_number, address, role, status
+            RETURNING id, name, email, phone, address, role, status
         `;
 
-        const values = [full_name, email, password, phone_number || null, address || null, role, status];
+        const values = [name, email, password, phone || null, address || null, normalizedRole, status];
         const result = await pool.query(query, values);
         return result.rows[0];
     },
