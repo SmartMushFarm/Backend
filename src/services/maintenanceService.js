@@ -26,7 +26,7 @@ const maintenanceService = {
         if (!device_id || !title) throw createHttpError(400, 'device_id and title are required');
         const device = await Device.findById(device_id);
         if (!device) throw createHttpError(404, 'Device not found');
-        if (device.user_id !== userId) throw createHttpError(403, 'Forbidden');
+        if (device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
 
         const req = await Maintenance.create({ userId, deviceId: device_id, title, description, priority });
         await notifyAdmins('New Maintenance Request', `User submitted: ${title}`);

@@ -72,7 +72,7 @@ const Component = {
 
     findDeviceComponentById: async (id) => {
         const result = await pool.query(
-            `SELECT dc.*, d.user_id FROM device_components dc JOIN devices d ON dc.device_id = d.id WHERE dc.id = $1`,
+            `SELECT dc.*, d.owner_id FROM device_components dc JOIN devices d ON dc.device_id = d.id WHERE dc.id = $1`,
             [id]
         );
         return result.rows[0] || null;

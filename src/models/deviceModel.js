@@ -5,7 +5,7 @@ const Device = {
         const result = await pool.query(
             `SELECT d.*, p.name as product_name FROM devices d
              LEFT JOIN products p ON d.product_id = p.id
-             WHERE d.user_id = $1 ORDER BY d.created_at DESC`,
+             WHERE d.owner_id = $1 ORDER BY d.created_at DESC`,
             [userId]
         );
         return result.rows;
@@ -31,7 +31,7 @@ const Device = {
 
     create: async ({ userId, productId, deviceName }) => {
         const result = await pool.query(
-            `INSERT INTO devices (user_id, product_id, device_name) VALUES ($1, $2, $3) RETURNING *`,
+            `INSERT INTO devices (owner_id, product_id, device_name) VALUES ($1, $2, $3) RETURNING *`,
             [userId, productId || null, deviceName]
         );
         return result.rows[0];
@@ -96,6 +96,29 @@ const Device = {
             [mist_status, fan_status, heater_status, light_status, mode, id]
         );
         return result.rows[0] || null;
+    },
+
+    updateMode: async (id, mode) => {
+        // If switching to Manual, deactivate any active device_presets and clear preset reference on device (if column exists)
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            if (mode === 'Manual') {
+                // Clear preset_id on device when switching to Manual
+                await client.query(`UPDATE devices SET preset_id = NULL WHERE id = $1`, [id]);
+            }
+
+            const result = await client.query(`UPDATE devices SET mode = $1 WHERE id = $2 RETURNING *`, [mode, id]);
+
+            await client.query('COMMIT');
+            return result.rows[0] || null;
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     },
 
     updateDeviceOutputStatus: async ({ id, mistStatus, fanStatus, heaterStatus, lightStatus, status }) => {

@@ -79,6 +79,15 @@ const deviceController = {
         } catch (e) { return sendError(res, e); }
     },
 
+    // PUT /:id/mode - set device mode ('Auto' or 'Manual')
+    changeMode: async (req, res) => {
+        try {
+            const { mode } = req.body;
+            const data = await deviceService.changeMode(req.params.id, req.user.id, req.user.role, mode);
+            return res.json({ success: true, data });
+        } catch (e) { return sendError(res, e); }
+    },
+
     // POST /:id/control - send MQTT command to physical device
     controlDevice: async (req, res) => {
         try {

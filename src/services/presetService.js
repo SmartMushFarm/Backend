@@ -8,11 +8,13 @@ const createHttpError = (status, message) => {
 };
 
 const presetService = {
-    getAll: async () => Preset.findAll(),
+    getAll: async (userId) => Preset.findAll(userId),
 
-    create: async (data) => {
+    create: async (data, user) => {
         if (!data.preset_name) throw createHttpError(400, 'preset_name is required');
-        return Preset.create(data);
+        const isRecommended = user && user.role === 'Admin' ? true : false;
+        const payload = { ...data, created_by: user ? user.id : null, is_recommended: isRecommended };
+        return Preset.create(payload);
     },
 
     update: async (id, data) => {
@@ -30,7 +32,7 @@ const presetService = {
     applyToDevice: async (deviceId, presetId, user) => {
         const device = await Device.findById(deviceId);
         if (!device) throw createHttpError(404, 'Device not found');
-        if (user.role !== 'Admin' && device.user_id !== user.id) throw createHttpError(403, 'Forbidden');
+        if (user.role !== 'Admin' && device.owner_id !== user.id) throw createHttpError(403, 'Forbidden');
 
         const preset = await Preset.findById(presetId);
         if (!preset) throw createHttpError(404, 'Preset not found');

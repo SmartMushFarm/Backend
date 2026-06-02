@@ -30,7 +30,7 @@ const componentService = {
     getDeviceComponents: async (deviceId, user) => {
         const device = await Device.findById(deviceId);
         if (!device) throw createHttpError(404, 'Device not found');
-        if (user.role !== 'Admin' && user.role !== 'Technician' && device.user_id !== user.id) {
+        if (user.role !== 'Admin' && user.role !== 'Technician' && device.owner_id !== user.id) {
             throw createHttpError(403, 'Forbidden');
         }
         return Component.getDeviceComponents(deviceId);
