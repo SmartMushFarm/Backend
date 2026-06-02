@@ -51,7 +51,8 @@ router.get('/', authMiddleware, presetController.getAll);
  *       201:
  *         description: Preset created
  */
-router.post('/', authMiddleware, roleMiddleware('Admin'), presetController.create);
+// Allow Admin and Customer to create presets. Admin-created presets are recommended globally.
+router.post('/', authMiddleware, roleMiddleware('Admin', 'Customer'), presetController.create);
 
 /**
  * @openapi

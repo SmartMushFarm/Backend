@@ -264,6 +264,36 @@ router.put('/:id/control', authMiddleware, deviceController.control);
  */
 router.post('/:id/control', deviceController.controlDevice);
 
+/**
+ * @openapi
+ * /api/devices/{id}/mode:
+ *   put:
+ *     summary: Set device mode (Auto or Manual)
+ *     tags: [Devices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               mode:
+ *                 type: string
+ *                 enum: [Auto, Manual]
+ *     responses:
+ *       200:
+ *         description: Mode updated
+ */
+router.put('/:id/mode', authMiddleware, deviceController.changeMode);
+
 // Preset apply
 /**
  * @openapi

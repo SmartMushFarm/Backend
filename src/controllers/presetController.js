@@ -3,11 +3,13 @@ const sendError = (res, e) => res.status(e.status || 500).json({ success: false,
 
 const presetController = {
     getAll: async (req, res) => {
-        try { return res.json({ success: true, data: await presetService.getAll() }); }
-        catch (e) { return sendError(res, e); }
+        try {
+            const userId = req.query.userId || (req.user && req.user.id);
+            return res.json({ success: true, data: await presetService.getAll(userId) });
+        } catch (e) { return sendError(res, e); }
     },
     create: async (req, res) => {
-        try { return res.status(201).json({ success: true, data: await presetService.create(req.body) }); }
+        try { return res.status(201).json({ success: true, data: await presetService.create(req.body, req.user) }); }
         catch (e) { return sendError(res, e); }
     },
     update: async (req, res) => {

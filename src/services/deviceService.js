@@ -1,6 +1,8 @@
 const Device = require('../models/deviceModel');
 const historyModel = require('../models/historyModel');
 const mqttService = require('../services/mqttService');
+const autoControl = require('./autoControlService');
+const Preset = require('../models/presetModel');
 
 const createHttpError = (status, message) => {
     const error = new Error(message);
@@ -10,7 +12,7 @@ const createHttpError = (status, message) => {
 
 const assertOwner = (device, userId, role) => {
     if (!device) throw createHttpError(404, 'Device not found');
-    if (role !== 'Admin' && device.user_id !== userId) throw createHttpError(403, 'Forbidden');
+    if (role !== 'Admin' && device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
 };
 
 const deviceService = {
@@ -53,15 +55,15 @@ const deviceService = {
         if (data.humidity > 90) warnings.push(`Humidity critical: ${data.humidity}%`);
         if (data.temperature > 35) warnings.push(`Temperature too high: ${data.temperature}°C`);
         if (warnings.length > 0) {
-            try {
-                const Notif = require('../models/notificationModel');
-                await Notif.create({
-                    userId: device.user_id,
-                    title: 'Device Alert',
-                    message: warnings.join(', '),
-                    type: 'DeviceAlert',
-                });
-            } catch (_) {}
+                try {
+                    const Notif = require('../models/notificationModel');
+                    await Notif.create({
+                        userId: device.owner_id,
+                        title: 'Device Alert',
+                        message: warnings.join(', '),
+                        type: 'DeviceAlert',
+                    });
+                } catch (_) {}
         }
 
         return Device.findById(deviceId);
@@ -87,6 +89,17 @@ const deviceService = {
 
         const history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
         const updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'online' });
+
+        // Auto control: only when device in Auto mode and has preset_id
+        try {
+            if (updatedDevice && updatedDevice.mode === 'Auto' && updatedDevice.preset_id) {
+                const preset = await Preset.findById(updatedDevice.preset_id);
+                if (preset) {
+                    // fire-and-forget
+                    autoControl.handleAutoControl({ device: updatedDevice, preset, temperature, humidity });
+                }
+            }
+        } catch (e) { /* ignore auto control errors */ }
 
         return { history, device: updatedDevice };
     },
@@ -126,6 +139,13 @@ const deviceService = {
         const device = await Device.findById(id);
         assertOwner(device, userId, role);
         return Device.updateControl(id, data);
+    },
+
+    changeMode: async (id, userId, role, mode) => {
+        const device = await Device.findById(id);
+        assertOwner(device, userId, role);
+        if (!mode || (mode !== 'Auto' && mode !== 'Manual')) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
+        return Device.updateMode(id, mode);
     },
 };
 
