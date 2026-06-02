@@ -1,0 +1,104 @@
+const { pool } = require('../config/db');
+
+const Device = {
+    findByUserId: async (userId) => {
+        const result = await pool.query(
+            `SELECT d.*, p.name as product_name FROM devices d
+             LEFT JOIN products p ON d.product_id = p.id
+             WHERE d.user_id = $1 ORDER BY d.created_at DESC`,
+            [userId]
+        );
+        return result.rows;
+    },
+
+    findById: async (id) => {
+        const result = await pool.query(
+            `SELECT d.*, p.name as product_name FROM devices d
+             LEFT JOIN products p ON d.product_id = p.id
+             WHERE d.id = $1`,
+            [id]
+        );
+        return result.rows[0] || null;
+    },
+
+    create: async ({ userId, productId, deviceName }) => {
+        const result = await pool.query(
+            `INSERT INTO devices (user_id, product_id, device_name) VALUES ($1, $2, $3) RETURNING *`,
+            [userId, productId || null, deviceName]
+        );
+        return result.rows[0];
+    },
+
+    update: async (id, fields) => {
+        const { device_name, status } = fields;
+        const result = await pool.query(
+            `UPDATE devices SET device_name = COALESCE($1, device_name), status = COALESCE($2, status) WHERE id = $3 RETURNING *`,
+            [device_name, status, id]
+        );
+        return result.rows[0] || null;
+    },
+
+    delete: async (id) => {
+        const result = await pool.query(`UPDATE devices SET status = 'Inactive' WHERE id = $1 RETURNING *`, [id]);
+        return result.rows[0] || null;
+    },
+
+    updateSensorData: async (id, data) => {
+        const { temperature, humidity, mist_status, fan_status, heater_status, light_status } = data;
+        const result = await pool.query(
+            `UPDATE devices SET
+                current_temperature = COALESCE($1, current_temperature),
+                current_humidity = COALESCE($2, current_humidity),
+                mist_status = COALESCE($3, mist_status),
+                fan_status = COALESCE($4, fan_status),
+                heater_status = COALESCE($5, heater_status),
+                light_status = COALESCE($6, light_status)
+             WHERE id = $7 RETURNING *`,
+            [temperature, humidity, mist_status, fan_status, heater_status, light_status, id]
+        );
+        return result.rows[0] || null;
+    },
+
+    updateControl: async (id, data) => {
+        const { mist_status, fan_status, heater_status, light_status, mode } = data;
+        const result = await pool.query(
+            `UPDATE devices SET
+                mist_status = COALESCE($1, mist_status),
+                fan_status = COALESCE($2, fan_status),
+                heater_status = COALESCE($3, heater_status),
+                light_status = COALESCE($4, light_status),
+                mode = COALESCE($5, mode)
+             WHERE id = $6 RETURNING *`,
+            [mist_status, fan_status, heater_status, light_status, mode, id]
+        );
+        return result.rows[0] || null;
+    },
+
+    insertSensorHistory: async ({ deviceId, temperature, humidity, mist_status, fan_status, heater_status, light_status }) => {
+        const result = await pool.query(
+            `INSERT INTO device_sensor_history (device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [deviceId, temperature, humidity, mist_status, fan_status, heater_status, light_status]
+        );
+        return result.rows[0];
+    },
+
+    getHistory: async (deviceId, from, to) => {
+        const conditions = [`device_id = $1`];
+        const values = [deviceId];
+        if (from) { values.push(from); conditions.push(`recorded_at >= $${values.length}`); }
+        if (to) { values.push(to); conditions.push(`recorded_at <= $${values.length}`); }
+        const result = await pool.query(
+            `SELECT * FROM device_sensor_history WHERE ${conditions.join(' AND ')} ORDER BY recorded_at DESC LIMIT 500`,
+            values
+        );
+        return result.rows;
+    },
+
+    getAll: async () => {
+        const result = await pool.query(`SELECT * FROM devices ORDER BY created_at DESC`);
+        return result.rows;
+    },
+};
+
+module.exports = Device;

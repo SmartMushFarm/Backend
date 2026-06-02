@@ -89,10 +89,21 @@ const authService = {
 
     getCurrentUser: async (userId) => {
         const user = await User.findById(userId);
-        if (!user) {
-            throw createHttpError(404, 'User not found');
-        }
+        if (!user) throw createHttpError(404, 'User not found');
+        return user;
+    },
 
+    getUsers: async () => {
+        return User.findAll();
+    },
+
+    updateUserStatus: async (id, status) => {
+        const allowed = ['Active', 'Inactive'];
+        if (!allowed.includes(status)) {
+            throw createHttpError(400, `status must be one of: ${allowed.join(', ')}`);
+        }
+        const user = await User.updateStatus(id, status);
+        if (!user) throw createHttpError(404, 'User not found');
         return user;
     },
 };

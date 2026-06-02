@@ -2,15 +2,34 @@ const { pool } = require('../config/db');
 
 const Product = {
     //1. Lấy danh sách sản phẩm (có thông tin category)
-    find: async () => {
+    find: async (filters = {}) => {
+        const { categoryId, keyword, status } = filters;
+        const conditions = [];
+        const values = [];
+
+        if (categoryId) {
+            values.push(categoryId);
+            conditions.push(`p.category_id = $${values.length}`);
+        }
+        if (status) {
+            values.push(status);
+            conditions.push(`p.status = $${values.length}`);
+        }
+        if (keyword) {
+            values.push(`%${keyword}%`);
+            conditions.push(`(p.name ILIKE $${values.length} OR p.description ILIKE $${values.length})`);
+        }
+
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const query = `
-      SELECT p.*, c.name as category_name 
-      FROM products p 
-      LEFT JOIN categories c ON p.category_id = c.id 
-      ORDER BY p.created_at DESC
-    `;
-    const result = await pool.query(query);
-    return result.rows; // Trả về thẳng mảng danh sách sản phẩm
+            SELECT p.*, c.name as category_name
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            ${where}
+            ORDER BY p.created_at DESC
+        `;
+        const result = await pool.query(query, values);
+        return result.rows;
     },
     //2. Lấy chi tiết sản phẩm theo ID (có thông tin category)
     findById: async (id) => {
