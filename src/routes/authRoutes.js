@@ -72,13 +72,22 @@ const router = express.Router();
  *           example: Ho Chi Minh
  *         role:
  *           type: string
- *           example: Customer
+ *           example: user
  *         status:
  *           type: string
  *           example: Active
  *         created_at:
  *           type: string
  *           format: date-time
+ *     UsersResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *         users:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/UserResponse'
  */
 
 /**
@@ -134,14 +143,11 @@ router.post('/login', authController.login);
  *   get:
  *     tags:
  *       - Auth
- *     summary: Get current logged in user
- *     security:
- *       - bearerAuth: []
+ *     summary: Get current logged-in user
+ *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200:
- *         description: Current user information
- *       401:
- *         description: Unauthorized
+ *         description: Current user info
  */
 router.get('/me', authMiddleware, authController.me);
 

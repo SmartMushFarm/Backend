@@ -68,7 +68,7 @@ const User = {
             password,
             phone_number,
             address,
-            role = 'Customer',
+            role = 'user',
             status = 'Active',
         } = userData;
 

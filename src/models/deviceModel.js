@@ -21,6 +21,14 @@ const Device = {
         return result.rows[0] || null;
     },
 
+    findDeviceByName: async (deviceName) => {
+        const result = await pool.query(
+            `SELECT * FROM devices WHERE device_name = $1`,
+            [deviceName]
+        );
+        return result.rows[0] || null;
+    },
+
     create: async ({ userId, productId, deviceName }) => {
         const result = await pool.query(
             `INSERT INTO devices (user_id, product_id, device_name) VALUES ($1, $2, $3) RETURNING *`,
@@ -59,6 +67,22 @@ const Device = {
         return result.rows[0] || null;
     },
 
+    updateDeviceFromSensor: async ({ id, currentHumidity, currentTemperature, mistStatus, fanStatus, heaterStatus, lightStatus, status }) => {
+        const result = await pool.query(
+            `UPDATE devices SET
+                current_humidity = $1,
+                current_temperature = $2,
+                mist_status = $3,
+                fan_status = $4,
+                heater_status = $5,
+                light_status = $6,
+                status = $7
+             WHERE id = $8 RETURNING *`,
+            [currentHumidity, currentTemperature, mistStatus, fanStatus, heaterStatus, lightStatus, status, id]
+        );
+        return result.rows[0];
+    },
+
     updateControl: async (id, data) => {
         const { mist_status, fan_status, heater_status, light_status, mode } = data;
         const result = await pool.query(
@@ -72,6 +96,20 @@ const Device = {
             [mist_status, fan_status, heater_status, light_status, mode, id]
         );
         return result.rows[0] || null;
+    },
+
+    updateDeviceOutputStatus: async ({ id, mistStatus, fanStatus, heaterStatus, lightStatus, status }) => {
+        const result = await pool.query(
+            `UPDATE devices SET
+                mist_status = COALESCE($1, mist_status),
+                fan_status = COALESCE($2, fan_status),
+                heater_status = COALESCE($3, heater_status),
+                light_status = COALESCE($4, light_status),
+                status = COALESCE($5, status)
+             WHERE id = $6 RETURNING *`,
+            [mistStatus, fanStatus, heaterStatus, lightStatus, status, id]
+        );
+        return result.rows[0];
     },
 
     insertSensorHistory: async ({ deviceId, temperature, humidity, mist_status, fan_status, heater_status, light_status }) => {

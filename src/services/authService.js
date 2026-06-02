@@ -42,7 +42,7 @@ const authService = {
             password: hashedPassword,
             phone_number,
             address,
-            role: 'Customer',
+            role: 'user',
             status: 'Active',
         });
 
@@ -105,6 +105,10 @@ const authService = {
         const user = await User.updateStatus(id, status);
         if (!user) throw createHttpError(404, 'User not found');
         return user;
+    },
+
+    getAllUsers: async () => {
+        return User.findAll();
     },
 };
 
