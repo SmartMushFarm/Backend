@@ -1,5 +1,8 @@
 const express = require('express');
 const authController = require('../controllers/authController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const roleMiddleware = require('../middlewares/roleMiddleware');
+
 const router = express.Router();
 
 /**
@@ -140,11 +143,51 @@ router.post('/login', authController.login);
  *   get:
  *     tags:
  *       - Auth
- *     summary: Get all users from User table
+ *     summary: Get current logged-in user
+ *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200:
- *         description: List of all users
+ *         description: Current user info
  */
-router.get('/me', authController.me);
+router.get('/me', authMiddleware, authController.me);
+
+/**
+ * @openapi
+ * /api/auth/users:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Admin - Get all users
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: List of users
+ */
+router.get('/users', authMiddleware, roleMiddleware('Admin'), authController.getUsers);
+
+/**
+ * @openapi
+ * /api/auth/users/{id}/status:
+ *   put:
+ *     tags: [Auth]
+ *     summary: Admin - Update user status (Active/Inactive)
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status: { type: string, example: Inactive }
+ *     responses:
+ *       200:
+ *         description: User status updated
+ */
+router.put('/users/:id/status', authMiddleware, roleMiddleware('Admin'), authController.updateUserStatus);
 
 module.exports = router;

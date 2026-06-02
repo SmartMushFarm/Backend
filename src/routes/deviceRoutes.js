@@ -1,87 +1,42 @@
-const express = require("express");
+const express = require('express');
+const deviceController = require('../controllers/deviceController');
+const componentController = require('../controllers/componentController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const roleMiddleware = require('../middlewares/roleMiddleware');
+
 const router = express.Router();
 
-const deviceController = require("../controllers/deviceController");
-
 /**
- * @swagger
+ * @openapi
  * tags:
- *   name: Devices
- *   description: Device APIs and MQTT control
+ *   - name: Devices
+ *     description: Device management, sensor, and MQTT control APIs
  */
 
-/**
- * @swagger
- * /api/devices:
- *   get:
- *     summary: Get all devices
- *     tags: [Devices]
- *     responses:
- *       200:
- *         description: Get all devices successfully
- */
-router.get("/", deviceController.getAllDevices);
+// Admin: list all devices
+router.get('/', authMiddleware, roleMiddleware('Admin'), deviceController.getAllDevices);
 
-/**
- * @swagger
- * /api/devices/{id}:
- *   get:
- *     summary: Get device by id
- *     tags: [Devices]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Device database id
- *     responses:
- *       200:
- *         description: Get device successfully
- *       404:
- *         description: Device not found
- */
-router.get("/:id", deviceController.getDeviceById);
+// Customer: list own devices
+router.get('/my-devices', authMiddleware, deviceController.getMyDevices);
+router.post('/', authMiddleware, deviceController.createDevice);
+router.get('/:id', authMiddleware, deviceController.getDeviceById);
+router.put('/:id', authMiddleware, deviceController.updateDevice);
+router.delete('/:id', authMiddleware, deviceController.deleteDevice);
 
-/**
- * @swagger
- * /api/devices/{id}/control:
- *   post:
- *     summary: Control MOSFET by MQTT
- *     tags: [Devices]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Device database id
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - device
- *               - action
- *             properties:
- *               device:
- *                 type: string
- *                 enum: [fan, heater, mist, all]
- *                 example: fan
- *               action:
- *                 type: string
- *                 enum: [on, off]
- *                 example: on
- *     responses:
- *       200:
- *         description: Command sent successfully
- *       400:
- *         description: Invalid input
- *       500:
- *         description: Server error
- */
-router.post("/:id/control", deviceController.controlDevice);
+// Sensor data (no auth - IoT devices push data)
+router.post('/:id/sensor-data', deviceController.submitSensorData);
+router.get('/:id/history', authMiddleware, deviceController.getHistory);
+router.get('/:id/latest-status', authMiddleware, deviceController.getLatestStatus);
+
+// Control: PUT updates DB state, POST sends MQTT command to physical device
+router.put('/:id/control', authMiddleware, deviceController.control);
+router.post('/:id/control', deviceController.controlDevice);
+
+// Preset apply
+router.put('/:deviceId/apply-preset/:presetId', authMiddleware, require('../controllers/presetController').applyToDevice);
+
+// Device components
+router.get('/:deviceId/components', authMiddleware, componentController.getDeviceComponents);
+router.post('/:deviceId/components', authMiddleware, roleMiddleware('Admin', 'Technician'), componentController.addToDevice);
 
 module.exports = router;

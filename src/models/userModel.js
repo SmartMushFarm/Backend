@@ -50,6 +50,17 @@ const User = {
         return result.rows;
     },
 
+    updateStatus: async (id, status) => {
+        const query = `
+            UPDATE ${USER_TABLE}
+            SET status = $1
+            WHERE id = $2
+            RETURNING id, full_name, email, phone_number, address, role, status
+        `;
+        const result = await pool.query(query, [status, id]);
+        return result.rows[0] || null;
+    },
+
     create: async (userData) => {
         const {
             full_name,

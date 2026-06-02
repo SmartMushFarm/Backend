@@ -42,16 +42,36 @@ const authController = {
 
     me: async (req, res) => {
         try {
-
-            const users = await authService.getAllUsers();
-
-            return res.status(200).json({
-                success: true,
-                users,
-            });
+            const user = await authService.getCurrentUser(req.user.id);
+            return res.status(200).json({ success: true, user });
         } catch (error) {
-            console.error('Error fetching users:', error);
+            console.error('Error fetching current user:', error);
+            return sendError(res, error);
+        }
+    },
 
+    getUsers: async (req, res) => {
+        try {
+            const users = await authService.getUsers();
+            return res.status(200).json({ success: true, data: users });
+        } catch (error) {
+            return sendError(res, error);
+        }
+    },
+
+    updateUserStatus: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status } = req.body;
+            if (!id || isNaN(id)) {
+                return res.status(400).json({ success: false, message: 'Invalid user ID' });
+            }
+            if (!status) {
+                return res.status(400).json({ success: false, message: 'Status field is required' });
+            }
+            const user = await authService.updateUserStatus(id, status);
+            return res.status(200).json({ success: true, message: 'User status updated', user });
+        } catch (error) {
             return sendError(res, error);
         }
     },
