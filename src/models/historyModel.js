@@ -40,7 +40,8 @@ const createHistory = async ({
 const getHistoryByDeviceId = async (deviceId, limit = 50) => {
   const result = await db.query(
     `
-    SELECT *
+    SELECT id, device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status,
+           (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') as created_at
     FROM history
     WHERE device_id = $1
     ORDER BY created_at DESC
@@ -55,7 +56,8 @@ const getHistoryByDeviceId = async (deviceId, limit = 50) => {
 const getLatestHistoryByDeviceId = async (deviceId) => {
   const result = await db.query(
     `
-    SELECT *
+    SELECT id, device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status,
+           (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') as created_at
     FROM history
     WHERE device_id = $1
     ORDER BY created_at DESC
