@@ -13,8 +13,8 @@ const runCleanupOnce = async () => {
   }
 };
 
-// Schedule cleanup every N milliseconds (default 3 days)
-const scheduleCleanup = (intervalMs = 3 * 24 * 60 * 60 * 1000) => {
+// Schedule cleanup every N milliseconds (default 2 days)
+const scheduleCleanup = (intervalMs = 2 * 24 * 60 * 60 * 1000) => {
   // run immediately at startup
   runCleanupOnce().catch(() => {});
 

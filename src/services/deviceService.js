@@ -93,7 +93,8 @@ const deviceService = {
                 let history = null;
                 let updatedDevice = null;
 
-                if (now - lastAt >= 15000) {
+                // only persist history every 30 seconds per device
+                if (now - lastAt >= 30000) {
                     // Deduplicate: check last saved history for this device to avoid near-duplicate rows
                     try {
                         const latest = await historyModel.getLatestHistoryByDeviceId(device.id);
