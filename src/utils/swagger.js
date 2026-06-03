@@ -3,7 +3,12 @@ require('dotenv').config();
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
+let SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
+
+// Ensure SERVER_URL includes a protocol so Swagger builds absolute URLs correctly
+if (!/^https?:\/\//i.test(SERVER_URL)) {
+  SERVER_URL = `https://${SERVER_URL}`;
+}
 
 const options = {
   definition: {
