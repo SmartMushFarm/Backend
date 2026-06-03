@@ -12,6 +12,12 @@ const pool = new Pool({
     },
 });
 
+// Ensure each new client session uses Vietnam timezone so timestamptz values
+// are returned in local time (Asia/Ho_Chi_Minh)
+pool.on('connect', (client) => {
+    client.query("SET TIME ZONE 'Asia/Ho_Chi_Minh'").catch(() => {});
+});
+
 const query = (text, params) => {
     return pool.query(text, params);
 };
