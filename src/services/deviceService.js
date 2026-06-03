@@ -94,10 +94,34 @@ const deviceService = {
                 let updatedDevice = null;
 
                 if (now - lastAt >= 15000) {
-                    history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
-                    // mark device as Active and update sensor snapshot when persisting history (every 15s)
-                    updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
-                    deviceService._lastHistorySavedAt.set(device.id, now);
+                    // Deduplicate: check last saved history for this device to avoid near-duplicate rows
+                    try {
+                        const latest = await historyModel.getLatestHistoryByDeviceId(device.id);
+                        if (latest) {
+                            const latestTime = new Date(latest.created_at).getTime();
+                            const tempEqual = Number(latest.temperature) === temperature;
+                            const humEqual = Number(latest.humidity) === humidity;
+                            // If latest entry is within 2s and values equal, skip creating duplicate
+                            if (Math.abs(now - latestTime) < 2000 && tempEqual && humEqual) {
+                                // update device snapshot but skip history insert
+                                updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                                deviceService._lastHistorySavedAt.set(device.id, now);
+                            } else {
+                                history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
+                                updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                                deviceService._lastHistorySavedAt.set(device.id, now);
+                            }
+                        } else {
+                            history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
+                            updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                            deviceService._lastHistorySavedAt.set(device.id, now);
+                        }
+                    } catch (e) {
+                        // on error, fallback to naive insert to avoid losing data
+                        history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
+                        updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                        deviceService._lastHistorySavedAt.set(device.id, now);
+                    }
                 } else {
                     // Always update device snapshot to reflect the latest ESP32 reading,
                     // even if we skip writing history. This keeps current_temperature/current_humidity up-to-date.
