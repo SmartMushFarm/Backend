@@ -1,190 +1,229 @@
--- SmartMushFarm Database Migration
--- Run this in Supabase SQL Editor
+-- FK: products.category_id -> categories.id
+alter table products
+add constraint fk_products_category
+foreign key (category_id)
+references categories(id)
+on delete set null;
 
--- Carts
-CREATE TABLE IF NOT EXISTS carts (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+-- USERS
+create table users (
+  id bigint generated always as identity primary key,
+  name text not null,
+  email text unique not null,
+  password text not null,
+  role text default 'Customer'
+    check (role in ('Customer', 'Admin')),
+  status text default 'Active'
+    check (status in ('Active', 'Inactive')),
+  phone text,
+  address text,
+  created_at timestamptz default now()
 );
 
--- Cart Items
-CREATE TABLE IF NOT EXISTS cart_items (
-  id SERIAL PRIMARY KEY,
-  cart_id INTEGER NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
-  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
-  created_at TIMESTAMP DEFAULT NOW()
+-- CART
+create table cart (
+  id bigint generated always as identity primary key,
+  user_id bigint unique references users(id) on delete cascade,
+  created_at timestamptz default now()
 );
 
--- Promotions
-CREATE TABLE IF NOT EXISTS promotions (
-  id SERIAL PRIMARY KEY,
-  code VARCHAR(50) UNIQUE NOT NULL,
-  discount_percent NUMERIC(5,2) DEFAULT 0,
-  discount_amount NUMERIC(12,2) DEFAULT 0,
-  valid_until TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW()
+-- CART ITEMS
+create table cart_items (
+  id bigint generated always as identity primary key,
+  cart_id bigint references cart(id) on delete cascade,
+  product_id bigint references products(id) on delete cascade,
+  quantity int default 1 check (quantity > 0),
+  unique(cart_id, product_id)
 );
 
--- Orders
-CREATE TABLE IF NOT EXISTS orders (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  shipping_address TEXT NOT NULL,
-  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
-  status VARCHAR(20) NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending','Confirmed','Shipping','Completed','Cancelled')),
-  promotion_id INTEGER REFERENCES promotions(id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+-- PROMOTIONS
+create table promotions (
+  id bigint generated always as identity primary key,
+  code text unique not null,
+  discount_percent numeric(5,2)
+    check (discount_percent >= 0 and discount_percent <= 100),
+  valid_from timestamptz,
+  valid_to timestamptz,
+  status text default 'Active'
+    check (status in ('Active', 'Inactive')),
+  created_at timestamptz default now(),
+  check (valid_to is null or valid_from is null or valid_to >= valid_from)
 );
 
--- Order Details
-CREATE TABLE IF NOT EXISTS order_details (
-  id SERIAL PRIMARY KEY,
-  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  product_id INTEGER NOT NULL REFERENCES products(id),
-  quantity INTEGER NOT NULL DEFAULT 1,
-  unit_price NUMERIC(12,2) NOT NULL
+-- ORDERS
+create table orders (
+  id bigint generated always as identity primary key,
+  user_id bigint references users(id) on delete set null,
+  promotion_id bigint references promotions(id) on delete set null,
+  order_date timestamptz default now(),
+  status text default 'Pending'
+    check (status in ('Pending', 'Confirmed', 'Shipping', 'Completed', 'Cancelled')),
+  total_amount numeric(10,2) default 0 check (total_amount >= 0),
+  shipping_address text,
+  created_at timestamptz default now()
 );
 
--- Payments
-CREATE TABLE IF NOT EXISTS payments (
-  id SERIAL PRIMARY KEY,
-  order_id INTEGER NOT NULL REFERENCES orders(id),
-  payment_method VARCHAR(20) NOT NULL DEFAULT 'COD' CHECK (payment_method IN ('COD','BankTransfer','MoMo','VNPay')),
-  amount NUMERIC(12,2) NOT NULL,
-  payment_status VARCHAR(20) NOT NULL DEFAULT 'Pending' CHECK (payment_status IN ('Pending','Paid','Failed','Refunded')),
-  paid_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW()
+-- ORDER DETAILS
+create table order_details (
+  id bigint generated always as identity primary key,
+  order_id bigint references orders(id) on delete cascade,
+  product_id bigint references products(id) on delete set null,
+  quantity int not null check (quantity > 0),
+  price numeric(10,2) not null check (price >= 0)
 );
 
--- Devices
-CREATE TABLE IF NOT EXISTS devices (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  product_id INTEGER REFERENCES products(id),
-  device_name VARCHAR(100) NOT NULL,
-  current_temperature NUMERIC(5,2),
-  current_humidity NUMERIC(5,2),
-  mist_status BOOLEAN DEFAULT FALSE,
-  fan_status BOOLEAN DEFAULT FALSE,
-  heater_status BOOLEAN DEFAULT FALSE,
-  light_status BOOLEAN DEFAULT FALSE,
-  mode VARCHAR(10) DEFAULT 'Manual' CHECK (mode IN ('Manual','Auto')),
-  status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active','Inactive','Maintenance')),
-  created_at TIMESTAMP DEFAULT NOW()
+-- PAYMENTS
+create table payments (
+  id bigint generated always as identity primary key,
+  order_id bigint unique references orders(id) on delete cascade,
+  payment_status text default 'Pending'
+    check (payment_status in ('Pending', 'Paid', 'Failed', 'Refunded')),
+  amount numeric(10,2) check (amount >= 0),
+  payment_method text
+    check (payment_method in ('COD', 'Banking', 'Momo', 'VNPAY')),
+  paid_at timestamptz,
+  created_at timestamptz default now()
 );
 
--- Device Sensor History
-CREATE TABLE IF NOT EXISTS device_sensor_history (
-  id SERIAL PRIMARY KEY,
-  device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  temperature NUMERIC(5,2),
-  humidity NUMERIC(5,2),
-  mist_status BOOLEAN DEFAULT FALSE,
-  fan_status BOOLEAN DEFAULT FALSE,
-  heater_status BOOLEAN DEFAULT FALSE,
-  light_status BOOLEAN DEFAULT FALSE,
-  recorded_at TIMESTAMP DEFAULT NOW()
+-- DEVICES
+create table devices (
+  id bigint generated always as identity primary key,
+  owner_id bigint references users(id) on delete cascade,
+  product_id bigint references products(id) on delete set null,
+
+  device_name text not null,
+
+  current_humidity int check (current_humidity between 0 and 100),
+  current_temperature numeric(5,2),
+
+  status text default 'Active'
+    check (status in ('Active', 'Inactive', 'Maintenance')),
+
+  mist_status boolean default false,
+  fan_status boolean default false,
+  heater_status boolean default false,
+  light_status boolean default false,
+
+  mode text default 'Auto'
+    check (mode in ('Auto', 'Manual')),
+
+  created_at timestamptz default now()
 );
 
--- Presets
-CREATE TABLE IF NOT EXISTS presets (
-  id SERIAL PRIMARY KEY,
-  preset_name VARCHAR(100) NOT NULL,
-  mushroom_type VARCHAR(100),
-  mist_on_humidity NUMERIC(5,2),
-  mist_off_humidity NUMERIC(5,2),
-  heater_on_temp NUMERIC(5,2),
-  heater_off_temp NUMERIC(5,2),
-  danger_humidity NUMERIC(5,2),
-  max_temp_danger NUMERIC(5,2),
-  created_at TIMESTAMP DEFAULT NOW()
+-- PRESETS
+create table presets (
+  id bigint generated always as identity primary key,
+  device_id bigint references devices(id) on delete cascade,
+
+  preset_name text not null,
+  mushroom_type text,
+
+  is_active boolean default false,
+
+  mist_on_humidity int check (mist_on_humidity between 0 and 100),
+  mist_off_humidity int check (mist_off_humidity between 0 and 100),
+  fan_on_humidity int check (fan_on_humidity between 0 and 100),
+  fan_off_humidity int check (fan_off_humidity between 0 and 100),
+
+  heater_on_temp numeric(5,2),
+  heater_off_temp numeric(5,2),
+
+  danger_humidity int check (danger_humidity between 0 and 100),
+  max_temp_danger numeric(5,2),
+
+  mist_pulse_on_seconds int check (mist_pulse_on_seconds >= 0),
+  mist_pulse_off_seconds int check (mist_pulse_off_seconds >= 0),
+
+  created_at timestamptz default now()
 );
 
--- Device Presets (which preset is applied to which device)
-CREATE TABLE IF NOT EXISTS device_presets (
-  id SERIAL PRIMARY KEY,
-  device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  preset_id INTEGER NOT NULL REFERENCES presets(id) ON DELETE CASCADE,
-  is_active BOOLEAN DEFAULT FALSE,
-  applied_at TIMESTAMP DEFAULT NOW()
+create unique index unique_active_preset_per_device
+on presets(device_id)
+where is_active = true;
+
+-- HISTORY
+create table history (
+  id bigint generated always as identity primary key,
+  device_id bigint references devices(id) on delete cascade,
+
+  temperature numeric(5,2),
+  humidity int check (humidity between 0 and 100),
+
+  mist_status boolean,
+  fan_status boolean,
+  heater_status boolean,
+  light_status boolean,
+
+  created_at timestamptz default now()
 );
 
--- Components (linh kien)
-CREATE TABLE IF NOT EXISTS components (
-  id SERIAL PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  description TEXT,
-  default_price NUMERIC(12,2) DEFAULT 0,
-  status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active','Inactive')),
-  created_at TIMESTAMP DEFAULT NOW()
+-- NOTIFICATIONS
+create table notifications (
+  id bigint generated always as identity primary key,
+
+  user_id bigint references users(id) on delete cascade,
+  device_id bigint references devices(id) on delete cascade,
+
+  title text not null,
+  message text not null,
+
+  type text default 'Info'
+    check (type in ('Info', 'Warning', 'Danger', 'Maintenance')),
+
+  is_read boolean default false,
+
+  created_at timestamptz default now()
 );
 
--- Device Components (linh kien trong hop nuoi nam)
-CREATE TABLE IF NOT EXISTS device_components (
-  id SERIAL PRIMARY KEY,
-  device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  component_id INTEGER NOT NULL REFERENCES components(id),
-  quantity INTEGER DEFAULT 1,
-  status VARCHAR(20) DEFAULT 'Working' CHECK (status IN ('Working','Broken','Replaced','Maintenance')),
-  created_at TIMESTAMP DEFAULT NOW()
+-- MAINTENANCE REQUESTS
+create table maintenance_requests (
+  id bigint generated always as identity primary key,
+
+  user_id bigint references users(id) on delete cascade,
+  device_id bigint references devices(id) on delete set null,
+
+  title text not null,
+  description text not null,
+
+  status text default 'Pending'
+    check (status in ('Pending', 'Received', 'Processing', 'Completed', 'Cancelled')),
+
+  priority text default 'Normal'
+    check (priority in ('Low', 'Normal', 'High', 'Urgent')),
+
+  assigned_admin_id bigint references users(id) on delete set null,
+
+  admin_note text,
+  scheduled_date timestamptz,
+  completed_at timestamptz,
+
+  created_at timestamptz default now()
 );
 
--- Maintenance Requests
-CREATE TABLE IF NOT EXISTS maintenance_requests (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  device_id INTEGER NOT NULL REFERENCES devices(id),
-  title VARCHAR(200) NOT NULL,
-  description TEXT,
-  priority VARCHAR(10) DEFAULT 'Medium' CHECK (priority IN ('Low','Medium','High')),
-  status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN ('Pending','Received','Processing','Completed','Rejected','Cancelled')),
-  technician_id INTEGER REFERENCES users(id),
-  scheduled_date TIMESTAMP,
-  admin_note TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
+-- INDEXES
+create index idx_products_category
+on products(category_id);
 
--- Maintenance Broken Components
-CREATE TABLE IF NOT EXISTS maintenance_broken_components (
-  id SERIAL PRIMARY KEY,
-  maintenance_request_id INTEGER NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
-  device_component_id INTEGER NOT NULL REFERENCES device_components(id),
-  note TEXT,
-  repair_action VARCHAR(20) DEFAULT 'Repair' CHECK (repair_action IN ('Repair','Replace')),
-  price NUMERIC(12,2) DEFAULT 0
-);
+create index idx_order_user
+on orders(user_id);
 
--- Repair Bills
-CREATE TABLE IF NOT EXISTS repair_bills (
-  id SERIAL PRIMARY KEY,
-  maintenance_request_id INTEGER NOT NULL REFERENCES maintenance_requests(id),
-  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
-  status VARCHAR(20) DEFAULT 'Pending' CHECK (status IN ('Pending','Paid','Cancelled')),
-  paid_at TIMESTAMP,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+create index idx_cart_user
+on cart(user_id);
 
--- Notifications
-CREATE TABLE IF NOT EXISTS notifications (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title VARCHAR(200) NOT NULL,
-  message TEXT,
-  type VARCHAR(50) DEFAULT 'General',
-  is_read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT NOW()
-);
+create index idx_cart_items_cart
+on cart_items(cart_id);
 
--- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_cart_items_cart_id ON cart_items(cart_id);
-CREATE INDEX IF NOT EXISTS idx_order_details_order_id ON order_details(order_id);
-CREATE INDEX IF NOT EXISTS idx_devices_user_id ON devices(user_id);
-CREATE INDEX IF NOT EXISTS idx_sensor_history_device_id ON device_sensor_history(device_id);
-CREATE INDEX IF NOT EXISTS idx_maintenance_requests_user_id ON maintenance_requests(user_id);
-CREATE INDEX IF NOT EXISTS idx_maintenance_requests_technician_id ON maintenance_requests(technician_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+create index idx_device_owner
+on devices(owner_id);
+
+create index idx_history_device_created_at
+on history(device_id, created_at desc);
+
+create index idx_notifications_user
+on notifications(user_id, is_read);
+
+create index idx_maintenance_user
+on maintenance_requests(user_id);
+
+create index idx_maintenance_status
+on maintenance_requests(status);
