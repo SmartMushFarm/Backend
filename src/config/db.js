@@ -18,6 +18,12 @@ pool.on('connect', (client) => {
     client.query("SET TIME ZONE 'Asia/Ho_Chi_Minh'").catch(() => {});
 });
 
+// Also run once immediately to set timezone on an active client (helps in some pool setups)
+pool.query("SET TIME ZONE 'Asia/Ho_Chi_Minh'").catch((err) => {
+    // ignore; will be retried for new clients via pool.on('connect')
+    console.error('Warning: could not set time zone on initial DB client', err && err.message);
+});
+
 const query = (text, params) => {
     return pool.query(text, params);
 };
