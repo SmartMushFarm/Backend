@@ -16,6 +16,14 @@ try {
   console.error('Failed to schedule history cleanup:', e);
 }
 
+// schedule device inactivity checker (mark devices Inactive after 2 minutes no updates)
+try {
+  const deviceInactivity = require('./services/deviceInactivityService');
+  deviceInactivity.scheduleInactivityCheck();
+} catch (e) {
+  console.error('Failed to schedule device inactivity check:', e);
+}
+
 /* ======================
    Start Server
 ====================== */

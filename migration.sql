@@ -227,3 +227,4 @@ on maintenance_requests(user_id);
 
 create index idx_maintenance_status
 on maintenance_requests(status);
+ 

@@ -60,7 +60,7 @@ const Device = {
                 mist_status = COALESCE($3, mist_status),
                 fan_status = COALESCE($4, fan_status),
                 heater_status = COALESCE($5, heater_status),
-                light_status = COALESCE($6, light_status)
+                                light_status = COALESCE($6, light_status)
              WHERE id = $7 RETURNING *`,
             [temperature, humidity, mist_status, fan_status, heater_status, light_status, id]
         );
@@ -75,8 +75,8 @@ const Device = {
                 mist_status = $3,
                 fan_status = $4,
                 heater_status = $5,
-                light_status = $6,
-                status = $7
+                                light_status = $6,
+                                status = $7
              WHERE id = $8 RETURNING *`,
             [currentHumidity, currentTemperature, mistStatus, fanStatus, heaterStatus, lightStatus, status, id]
         );
@@ -127,8 +127,8 @@ const Device = {
                 mist_status = COALESCE($1, mist_status),
                 fan_status = COALESCE($2, fan_status),
                 heater_status = COALESCE($3, heater_status),
-                light_status = COALESCE($4, light_status),
-                status = COALESCE($5, status)
+                                light_status = COALESCE($4, light_status),
+                                status = COALESCE($5, status)
              WHERE id = $6 RETURNING *`,
             [mistStatus, fanStatus, heaterStatus, lightStatus, status, id]
         );
