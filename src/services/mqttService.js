@@ -1,7 +1,6 @@
 require("dotenv").config();
 
 const mqtt = require("mqtt");
-const deviceService = require("./deviceService");
 
 const MQTT_HOST = process.env.MQTT_HOST;
 const MQTT_USERNAME = process.env.MQTT_USERNAME;
@@ -47,6 +46,9 @@ mqttClient.on("message", async (topic, message) => {
     payload.deviceId = payload.deviceId || deviceNameFromTopic;
 
     console.log("MQTT message:", topic, payload);
+
+    // lazy-require deviceService to avoid circular dependency at module load time
+    const deviceService = require('./deviceService');
 
     if (topic.endsWith("/sensor")) {
       await deviceService.saveMqttSensorData(payload);
