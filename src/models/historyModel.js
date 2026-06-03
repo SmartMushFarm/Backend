@@ -72,3 +72,22 @@ module.exports = {
   getHistoryByDeviceId,
   getLatestHistoryByDeviceId,
 };
+
+// Cleanup: delete all history rows for each device that are older than the most recent day
+// i.e. keep only the most recent day's history per device
+const cleanupKeepLatestDayPerDevice = async () => {
+  const result = await db.query(`
+    DELETE FROM history h
+    USING (
+      SELECT device_id, max(date(created_at)) as max_date
+      FROM history
+      GROUP BY device_id
+    ) t
+    WHERE h.device_id = t.device_id AND date(h.created_at) < t.max_date
+    RETURNING h.*
+  `);
+
+  return result.rowCount;
+};
+
+module.exports.cleanupKeepLatestDayPerDevice = cleanupKeepLatestDayPerDevice;

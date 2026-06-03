@@ -1,7 +1,5 @@
 const Device = require('../models/deviceModel');
 const historyModel = require('../models/historyModel');
-const mqttService = require('../services/mqttService');
-const autoControl = require('./autoControlService');
 const Preset = require('../models/presetModel');
 
 const createHttpError = (status, message) => {
@@ -87,15 +85,32 @@ const deviceService = {
         const heaterStatus = outputStatus.heater ?? false;
         const lightStatus = outputStatus.light ?? false;
 
-        const history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
-        const updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'online' });
+                // Throttle history writes: only save history every 15 seconds per device
+                if (!deviceService._lastHistorySavedAt) deviceService._lastHistorySavedAt = new Map();
+                const lastAt = deviceService._lastHistorySavedAt.get(device.id) || 0;
+                const now = Date.now();
+
+                let history = null;
+                let updatedDevice = null;
+
+                if (now - lastAt >= 15000) {
+                    history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
+                    // mark device as Active and update sensor snapshot when persisting history (every 15s)
+                    updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                    deviceService._lastHistorySavedAt.set(device.id, now);
+                } else {
+                    // Always update device snapshot to reflect the latest ESP32 reading,
+                    // even if we skip writing history. This keeps current_temperature/current_humidity up-to-date.
+                    updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                }
 
         // Auto control: only when device in Auto mode and has preset_id
         try {
             if (updatedDevice && updatedDevice.mode === 'Auto' && updatedDevice.preset_id) {
                 const preset = await Preset.findById(updatedDevice.preset_id);
                 if (preset) {
-                    // fire-and-forget
+                    // fire-and-forget; lazy-require to avoid circular dependency
+                    const autoControl = require('./autoControlService');
                     autoControl.handleAutoControl({ device: updatedDevice, preset, temperature, humidity });
                 }
             }
@@ -113,13 +128,16 @@ const deviceService = {
         if (!device) { console.log('Device not found in DB:', deviceName); return null; }
 
         const outputStatus = mqttData.outputStatus || mqttData.relayStatus || {};
-        return Device.updateDeviceOutputStatus({ id: device.id, mistStatus: outputStatus.mist, fanStatus: outputStatus.fan, heaterStatus: outputStatus.heater, lightStatus: outputStatus.light, status: 'online' });
+        // mark device as Active when receiving status update
+        return Device.updateDeviceOutputStatus({ id: device.id, mistStatus: outputStatus.mist, fanStatus: outputStatus.fan, heaterStatus: outputStatus.heater, lightStatus: outputStatus.light, status: 'Active' });
     },
 
     // MQTT: send control command
     controlViaMqtt: async (id, { device, action }) => {
         const targetDevice = await Device.findById(id);
         if (!targetDevice) throw createHttpError(404, 'Device not found');
+        // lazy-require to avoid circular dependency with mqttService
+        const mqttService = require('./mqttService');
         return mqttService.publishCommand({ deviceName: targetDevice.device_name, device, action });
     },
 
