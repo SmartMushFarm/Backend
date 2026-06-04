@@ -7,7 +7,7 @@ const createHttpError = (status, message) => {
     return error;
 };
 
-const VALID_METHODS = ['COD', 'BankTransfer', 'MoMo', 'VNPay'];
+const VALID_METHODS = ['COD', 'Banking', 'Momo', 'VNPAY'];
 
 const paymentService = {
     create: async (userId, { order_id, payment_method }) => {

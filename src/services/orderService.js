@@ -32,7 +32,6 @@ const orderService = {
             const promo = await Order.findPromotion(promotion_id);
             if (promo) {
                 if (promo.discount_percent > 0) totalAmount = subtotal * (1 - promo.discount_percent / 100);
-                else if (promo.discount_amount > 0) totalAmount = Math.max(0, subtotal - promo.discount_amount);
             }
         }
 

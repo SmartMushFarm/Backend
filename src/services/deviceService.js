@@ -59,7 +59,7 @@ const deviceService = {
                         userId: device.owner_id,
                         title: 'Device Alert',
                         message: warnings.join(', '),
-                        type: 'DeviceAlert',
+                        type: 'Danger',
                     });
                 } catch (_) {}
         }

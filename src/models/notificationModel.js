@@ -4,7 +4,7 @@ const Notification = {
     create: async ({ userId, title, message, type }) => {
         const result = await pool.query(
             `INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4) RETURNING *`,
-            [userId, title, message || null, type || 'General']
+            [userId, title, message || null, type || 'Info']
         );
         return result.rows[0];
     },

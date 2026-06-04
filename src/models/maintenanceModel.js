@@ -5,7 +5,7 @@ const Maintenance = {
         const result = await pool.query(
             `INSERT INTO maintenance_requests (user_id, device_id, title, description, priority)
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [userId, deviceId, title, description || null, priority || 'Medium']
+            [userId, deviceId, title, description || null, priority || 'Normal']
         );
         return result.rows[0];
     },
@@ -25,11 +25,11 @@ const Maintenance = {
             `SELECT mr.*,
                 d.device_name, d.current_temperature, d.current_humidity,
                 u.name as user_name, u.email as user_email, u.phone as user_phone,
-                t.name as technician_name
+                a.name as assigned_admin_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
              JOIN users u ON mr.user_id = u.id
-             LEFT JOIN users t ON mr.technician_id = t.id
+             LEFT JOIN users a ON mr.assigned_admin_id = a.id
              WHERE mr.id = $1`,
             [id]
         );
@@ -38,75 +38,47 @@ const Maintenance = {
 
     findAll: async (filters = {}) => {
         const { status } = filters;
-        const where = status ? `WHERE mr.status = '${status}'` : '';
+        const values = [];
+        const where = status ? (values.push(status), `WHERE mr.status = $1`) : '';
         const result = await pool.query(
-            `SELECT mr.*, d.device_name, u.name as user_name, t.name as technician_name
+            `SELECT mr.*, d.device_name, u.name as user_name, a.name as assigned_admin_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
              JOIN users u ON mr.user_id = u.id
-             LEFT JOIN users t ON mr.technician_id = t.id
+             LEFT JOIN users a ON mr.assigned_admin_id = a.id
              ${where}
-             ORDER BY mr.created_at DESC`
+             ORDER BY mr.created_at DESC`,
+            values
         );
         return result.rows;
     },
 
-    findByTechnicianId: async (technicianId) => {
+    findByAssignedAdminId: async (adminId) => {
         const result = await pool.query(
             `SELECT mr.*, d.device_name, u.name as user_name
              FROM maintenance_requests mr
              JOIN devices d ON mr.device_id = d.id
              JOIN users u ON mr.user_id = u.id
-             WHERE mr.technician_id = $1
+             WHERE mr.assigned_admin_id = $1
              ORDER BY mr.created_at DESC`,
-            [technicianId]
+            [adminId]
         );
         return result.rows;
     },
 
     updateStatus: async (id, status, extra = {}) => {
-        const { technicianId, scheduledDate, adminNote } = extra;
+        const { assignedAdminId, scheduledDate, adminNote, completedAt } = extra;
         const result = await pool.query(
             `UPDATE maintenance_requests SET
                 status = $1,
-                updated_at = NOW(),
-                technician_id = COALESCE($2, technician_id),
+                assigned_admin_id = COALESCE($2, assigned_admin_id),
                 scheduled_date = COALESCE($3, scheduled_date),
-                admin_note = COALESCE($4, admin_note)
-             WHERE id = $5 RETURNING *`,
-            [status, technicianId || null, scheduledDate || null, adminNote || null, id]
+                admin_note = COALESCE($4, admin_note),
+                completed_at = COALESCE($5, completed_at)
+             WHERE id = $6 RETURNING *`,
+            [status, assignedAdminId || null, scheduledDate || null, adminNote || null, completedAt || null, id]
         );
         return result.rows[0] || null;
-    },
-
-    saveBrokenComponents: async (maintenanceId, brokenComponents) => {
-        // Delete existing first
-        await pool.query(`DELETE FROM maintenance_broken_components WHERE maintenance_request_id = $1`, [maintenanceId]);
-        const results = [];
-        for (const bc of brokenComponents) {
-            const r = await pool.query(
-                `INSERT INTO maintenance_broken_components (maintenance_request_id, device_component_id, note, repair_action, price)
-                 VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-                [maintenanceId, bc.device_component_id, bc.note || null, bc.repair_action || 'Repair', bc.price || 0]
-            );
-            results.push(r.rows[0]);
-            // Update device component status
-            const dcStatus = bc.repair_action === 'Replace' ? 'Replaced' : 'Maintenance';
-            await pool.query(`UPDATE device_components SET status = $1 WHERE id = $2`, [dcStatus, bc.device_component_id]);
-        }
-        return results;
-    },
-
-    getBrokenComponents: async (maintenanceId) => {
-        const result = await pool.query(
-            `SELECT mbc.*, dc.component_id, c.name as component_name
-             FROM maintenance_broken_components mbc
-             JOIN device_components dc ON mbc.device_component_id = dc.id
-             JOIN components c ON dc.component_id = c.id
-             WHERE mbc.maintenance_request_id = $1`,
-            [maintenanceId]
-        );
-        return result.rows;
     },
 };
 

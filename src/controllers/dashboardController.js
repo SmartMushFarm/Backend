@@ -37,8 +37,8 @@ const dashboardController = {
                     COUNT(*) as total,
                     COUNT(*) FILTER (WHERE status = 'Active') as active,
                     COUNT(*) FILTER (WHERE status = 'Inactive') as inactive,
-                    COUNT(*) FILTER (WHERE role = 'Technician') as technicians
-                FROM "User"
+                    COUNT(*) FILTER (WHERE role = 'Admin') as admins
+                FROM users
             `);
             return res.json({ success: true, data: result.rows[0] });
         } catch (e) { return sendError(res, e); }
