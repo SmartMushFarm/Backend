@@ -63,12 +63,6 @@ router.get('/my-devices', authMiddleware, deviceController.getMyDevices);
  */
 router.post('/', authMiddleware, deviceController.createDevice);
 
-// Admin: list all devices
-router.get('/', authMiddleware, roleMiddleware('Admin'), deviceController.getAllDevices);
-
-// Customer: list own devices
-router.get('/my-devices', authMiddleware, deviceController.getMyDevices);
-router.post('/', authMiddleware, deviceController.createDevice);
 /**
  * @openapi
  * /api/devices/{id}:

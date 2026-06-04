@@ -17,8 +17,8 @@ router.put('/orders/:id/status', orderController.updateOrderStatus);
 // Maintenance
 router.get('/maintenance-requests', maintenanceController.getAllRequests);
 router.put('/maintenance-requests/:id/approve', maintenanceController.approve);
-router.put('/maintenance-requests/:id/assign-technician', maintenanceController.assignTechnician);
-router.put('/maintenance-requests/:id/reject', maintenanceController.reject);
+router.put('/maintenance-requests/:id/schedule', maintenanceController.schedule);
+router.put('/maintenance-requests/:id/cancel', maintenanceController.cancel);
 router.put('/maintenance-requests/:id/confirm-completed', maintenanceController.confirmCompleted);
 
 // Dashboard

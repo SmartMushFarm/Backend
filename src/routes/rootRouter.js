@@ -9,9 +9,9 @@ const orderRoutes = require('./orderRoutes');
 const paymentRoutes = require('./paymentRoutes');
 const deviceRoutes = require('./deviceRoutes');
 const presetRoutes = require('./presetRoutes');
-const componentRoutes = require('./componentRoutes');
+// const componentRoutes = require('./componentRoutes'); // TODO: enable when components table is ready
 const maintenanceRoutes = require('./maintenanceRoutes');
-const repairBillRoutes = require('./repairBillRoutes');
+// const repairBillRoutes = require('./repairBillRoutes'); // TODO: enable when repair_bills table is ready
 const notificationRoutes = require('./notificationRoutes');
 const technicianRoutes = require('./technicianRoutes');
 const adminRoutes = require('./adminRoutes');
@@ -28,9 +28,9 @@ router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/devices', deviceRoutes);
 router.use('/presets', presetRoutes);
-router.use('/components', componentRoutes);
+// router.use('/components', componentRoutes); // TODO: enable when components table is ready
 router.use('/maintenance-requests', maintenanceRoutes);
-router.use('/repair-bills', repairBillRoutes);
+// router.use('/repair-bills', repairBillRoutes); // TODO: enable when repair_bills table is ready
 router.use('/notifications', notificationRoutes);
 router.use('/technician', technicianRoutes);
 router.use('/admin', adminRoutes);

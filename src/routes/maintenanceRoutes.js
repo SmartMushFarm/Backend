@@ -14,7 +14,7 @@ const router = express.Router();
 
 /**
  * @openapi
- * /api/maintenance:
+ * /api/maintenance-requests:
  *   post:
  *     tags: [Maintenance]
  *     summary: Create a maintenance request
@@ -33,7 +33,7 @@ router.post('/', authMiddleware, ctrl.createRequest);
 
 /**
  * @openapi
- * /api/maintenance/my-requests:
+ * /api/maintenance-requests/my-requests:
  *   get:
  *     tags: [Maintenance]
  *     summary: Get current user's maintenance requests
@@ -46,7 +46,7 @@ router.get('/my-requests', authMiddleware, ctrl.getMyRequests);
 
 /**
  * @openapi
- * /api/maintenance/{id}:
+ * /api/maintenance-requests/{id}:
  *   get:
  *     tags: [Maintenance]
  *     summary: Get maintenance request by id

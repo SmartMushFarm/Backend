@@ -137,7 +137,7 @@ const Device = {
 
     insertSensorHistory: async ({ deviceId, temperature, humidity, mist_status, fan_status, heater_status, light_status }) => {
         const result = await pool.query(
-            `INSERT INTO device_sensor_history (device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status)
+            `INSERT INTO history (device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status)
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [deviceId, temperature, humidity, mist_status, fan_status, heater_status, light_status]
         );
@@ -147,10 +147,10 @@ const Device = {
     getHistory: async (deviceId, from, to) => {
         const conditions = [`device_id = $1`];
         const values = [deviceId];
-        if (from) { values.push(from); conditions.push(`recorded_at >= $${values.length}`); }
-        if (to) { values.push(to); conditions.push(`recorded_at <= $${values.length}`); }
+        if (from) { values.push(from); conditions.push(`created_at >= $${values.length}`); }
+        if (to) { values.push(to); conditions.push(`created_at <= $${values.length}`); }
         const result = await pool.query(
-            `SELECT * FROM device_sensor_history WHERE ${conditions.join(' AND ')} ORDER BY recorded_at DESC LIMIT 500`,
+            `SELECT * FROM history WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT 500`,
             values
         );
         return result.rows;

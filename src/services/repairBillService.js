@@ -29,7 +29,7 @@ const repairBillService = {
         // Notify technician and admins
         const req = await Maintenance.findById(bill.maintenance_request_id);
         if (req && req.technician_id) {
-            await Notification.create({ userId: req.technician_id, title: 'Repair Bill Paid', message: `Bill for maintenance #${req.id} has been paid.`, type: 'RepairBill' });
+            await Notification.create({ userId: req.assigned_admin_id, title: 'Repair Bill Paid', message: `Bill for maintenance #${req.id} has been paid.`, type: 'Maintenance' });
         }
         return updated;
     },

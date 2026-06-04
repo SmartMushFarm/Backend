@@ -12,7 +12,7 @@ const Order = {
 
     createDetail: async (client, { orderId, productId, quantity, unitPrice }) => {
         const result = await client.query(
-            `INSERT INTO order_details (order_id, product_id, quantity, unit_price)
+            `INSERT INTO order_details (order_id, product_id, quantity, price)
              VALUES ($1, $2, $3, $4) RETURNING *`,
             [orderId, productId, quantity, unitPrice]
         );
@@ -59,20 +59,22 @@ const Order = {
 
     findAll: async (filters = {}) => {
         const { status } = filters;
-        const conditions = status ? `WHERE o.status = '${status}'` : '';
+        const values = [];
+        const where = status ? (values.push(status), `WHERE o.status = $1`) : '';
         const result = await pool.query(
             `SELECT o.*, u.name as user_name, u.email as user_email
              FROM orders o
              JOIN users u ON o.user_id = u.id
-             ${conditions}
-             ORDER BY o.created_at DESC`
+             ${where}
+             ORDER BY o.created_at DESC`,
+            values
         );
         return result.rows;
     },
 
     updateStatus: async (id, status) => {
         const result = await pool.query(
-            `UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+            `UPDATE orders SET status = $1 WHERE id = $2 RETURNING *`,
             [status, id]
         );
         return result.rows[0] || null;

@@ -20,43 +20,30 @@ const Preset = {
 
     create: async (data) => {
         const {
-            preset_name,
-            mushroom_type,
-            mist_on_humidity,
-            mist_off_humidity,
-            fan_on_humidity,
-            fan_off_humidity,
-            heater_on_temp,
-            heater_off_temp,
-            danger_humidity,
-            max_temp_danger,
-            mist_pulse_on_seconds,
-            mist_pulse_off_seconds,
-            created_by,
-            is_recommended,
+            preset_name, mushroom_type,
+            mist_on_humidity, mist_off_humidity,
+            fan_on_humidity, fan_off_humidity,
+            heater_on_temp, heater_off_temp,
+            danger_humidity, max_temp_danger,
+            mist_pulse_on_seconds, mist_pulse_off_seconds,
+            created_by, is_recommended,
         } = data;
         const result = await pool.query(
             `INSERT INTO presets (
-                preset_name, mushroom_type, mist_on_humidity, mist_off_humidity,
-                fan_on_humidity, fan_off_humidity, heater_on_temp, heater_off_temp,
-                danger_humidity, max_temp_danger, mist_pulse_on_seconds, mist_pulse_off_seconds,
+                preset_name, mushroom_type,
+                mist_on_humidity, mist_off_humidity, fan_on_humidity, fan_off_humidity,
+                heater_on_temp, heater_off_temp, danger_humidity, max_temp_danger,
+                mist_pulse_on_seconds, mist_pulse_off_seconds,
                 created_by, is_recommended
             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
             [
-                preset_name,
-                mushroom_type || null,
-                mist_on_humidity || null,
-                mist_off_humidity || null,
-                fan_on_humidity || null,
-                fan_off_humidity || null,
-                heater_on_temp || null,
-                heater_off_temp || null,
-                danger_humidity || null,
-                max_temp_danger || null,
-                mist_pulse_on_seconds || null,
-                mist_pulse_off_seconds || null,
-                created_by || null,
-                is_recommended || false,
+                preset_name, mushroom_type || null,
+                mist_on_humidity || null, mist_off_humidity || null,
+                fan_on_humidity || null, fan_off_humidity || null,
+                heater_on_temp || null, heater_off_temp || null,
+                danger_humidity || null, max_temp_danger || null,
+                mist_pulse_on_seconds || null, mist_pulse_off_seconds || null,
+                created_by || null, is_recommended || false,
             ]
         );
         return result.rows[0];
@@ -64,18 +51,12 @@ const Preset = {
 
     update: async (id, data) => {
         const {
-            preset_name,
-            mushroom_type,
-            mist_on_humidity,
-            mist_off_humidity,
-            fan_on_humidity,
-            fan_off_humidity,
-            heater_on_temp,
-            heater_off_temp,
-            danger_humidity,
-            max_temp_danger,
-            mist_pulse_on_seconds,
-            mist_pulse_off_seconds,
+            preset_name, mushroom_type,
+            mist_on_humidity, mist_off_humidity,
+            fan_on_humidity, fan_off_humidity,
+            heater_on_temp, heater_off_temp,
+            danger_humidity, max_temp_danger,
+            mist_pulse_on_seconds, mist_pulse_off_seconds,
             is_recommended,
         } = data;
         const result = await pool.query(
@@ -95,20 +76,13 @@ const Preset = {
                 is_recommended = COALESCE($13, is_recommended)
              WHERE id = $14 RETURNING *`,
             [
-                preset_name,
-                mushroom_type,
-                mist_on_humidity,
-                mist_off_humidity,
-                fan_on_humidity,
-                fan_off_humidity,
-                heater_on_temp,
-                heater_off_temp,
-                danger_humidity,
-                max_temp_danger,
-                mist_pulse_on_seconds,
-                mist_pulse_off_seconds,
-                is_recommended,
-                id,
+                preset_name, mushroom_type,
+                mist_on_humidity, mist_off_humidity,
+                fan_on_humidity, fan_off_humidity,
+                heater_on_temp, heater_off_temp,
+                danger_humidity, max_temp_danger,
+                mist_pulse_on_seconds, mist_pulse_off_seconds,
+                is_recommended, id,
             ]
         );
         return result.rows[0] || null;
@@ -120,22 +94,11 @@ const Preset = {
     },
 
     applyToDevice: async (deviceId, presetId) => {
-        // Simple apply: set device.mode = 'Auto' and devices.preset_id = presetId
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            // Update device row with applied preset
-            const r = await client.query(`UPDATE devices SET mode = 'Auto', preset_id = $1 WHERE id = $2 RETURNING *`, [presetId, deviceId]);
-
-            await client.query('COMMIT');
-            return r.rows[0] || null;
-        } catch (err) {
-            await client.query('ROLLBACK');
-            throw err;
-        } finally {
-            client.release();
-        }
+        const result = await pool.query(
+            `UPDATE devices SET preset_id = $1, mode = 'Auto' WHERE id = $2 RETURNING *`,
+            [presetId, deviceId]
+        );
+        return result.rows[0] || null;
     },
 };
 

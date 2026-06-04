@@ -2,20 +2,20 @@ const { pool } = require('../config/db');
 
 const Cart = {
     findByUserId: async (userId) => {
-        const result = await pool.query(`SELECT * FROM carts WHERE user_id = $1 LIMIT 1`, [userId]);
+        const result = await pool.query(`SELECT * FROM cart WHERE user_id = $1 LIMIT 1`, [userId]);
         return result.rows[0] || null;
     },
 
     create: async (userId) => {
         const result = await pool.query(
-            `INSERT INTO carts (user_id) VALUES ($1) RETURNING *`,
+            `INSERT INTO cart (user_id) VALUES ($1) RETURNING *`,
             [userId]
         );
         return result.rows[0];
     },
 
     getCartWithItems: async (userId) => {
-        const cartResult = await pool.query(`SELECT * FROM carts WHERE user_id = $1 LIMIT 1`, [userId]);
+        const cartResult = await pool.query(`SELECT * FROM cart WHERE user_id = $1 LIMIT 1`, [userId]);
         const cart = cartResult.rows[0];
         if (!cart) return null;
 
@@ -75,7 +75,7 @@ const Cart = {
 
     findItemById: async (itemId) => {
         const result = await pool.query(
-            `SELECT ci.*, c.user_id FROM cart_items ci JOIN carts c ON ci.cart_id = c.id WHERE ci.id = $1`,
+            `SELECT ci.*, c.user_id FROM cart_items ci JOIN cart c ON ci.cart_id = c.id WHERE ci.id = $1`,
             [itemId]
         );
         return result.rows[0] || null;
