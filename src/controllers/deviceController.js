@@ -111,6 +111,33 @@ const deviceController = {
             return res.json({ success: true, message: 'Command sent successfully', data: result });
         } catch (e) { return sendError(res, e); }
     },
+
+    // Admin: generate claim code for a device
+    generateClaimCode: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const result = await deviceService.generateClaimCode(id, req.user);
+            return res.json({ success: true, message: 'Claim code generated successfully', data: { deviceId: Number(id), claimCode: result.claimCode } });
+        } catch (e) { return sendError(res, e); }
+    },
+
+    // User: claim device by code
+    claimDevice: async (req, res) => {
+        try {
+            const { claimCode } = req.body;
+            const device = await deviceService.claimDevice(claimCode, req.user.id);
+            return res.json({ success: true, message: 'Device claimed successfully', data: device });
+        } catch (e) { return sendError(res, e); }
+    },
+
+    // User/Admin: remove owner (unbind device)
+    removeOwner: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const device = await deviceService.removeOwner(id, req.user.id, req.user.role);
+            return res.json({ success: true, message: 'Device removed from your account successfully', data: device });
+        } catch (e) { return sendError(res, e); }
+    },
 };
 
 module.exports = deviceController;

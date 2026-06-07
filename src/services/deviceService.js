@@ -27,6 +27,8 @@ const deviceService = {
         const device = await Device.findById(id);
         if (user) assertOwner(device, user.id, user.role);
         else if (!device) throw createHttpError(404, 'Device not found');
+        // Do not expose claim_code to non-admin users
+        if (device && user && String(user.role).toLowerCase() !== 'admin') device.claim_code = null;
         return device;
     },
 
@@ -64,7 +66,9 @@ const deviceService = {
                 } catch (_) {}
         }
 
-        return Device.findById(deviceId);
+        const found = await Device.findById(deviceId);
+        if (found) found.claim_code = null;
+        return found;
     },
 
     // MQTT: save sensor data from IoT device by device_name
@@ -175,20 +179,81 @@ const deviceService = {
     getLatestStatus: async (id, user) => {
         const device = await Device.findById(id);
         assertOwner(device, user.id, user.role);
+        if (device && String(user.role).toLowerCase() !== 'admin') device.claim_code = null;
         return device;
     },
 
     control: async (id, userId, role, data) => {
         const device = await Device.findById(id);
         assertOwner(device, userId, role);
-        return Device.updateControl(id, data);
+        const updated = await Device.updateControl(id, data);
+        if (updated && String(role).toLowerCase() !== 'admin') updated.claim_code = null;
+        return updated;
     },
 
     changeMode: async (id, userId, role, mode) => {
         const device = await Device.findById(id);
         assertOwner(device, userId, role);
         if (!mode || (mode !== 'Auto' && mode !== 'Manual')) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
-        return Device.updateMode(id, mode);
+        const updated = await Device.updateMode(id, mode);
+        if (updated && String(role).toLowerCase() !== 'admin') updated.claim_code = null;
+        return updated;
+    },
+
+    // Admin: generate a unique 6-char claim code for device
+    generateClaimCode: async (deviceId, currentUser) => {
+        if (!currentUser || String(currentUser.role).toLowerCase() !== 'admin') throw createHttpError(403, 'Forbidden');
+
+        const device = await Device.findById(deviceId);
+        if (!device) throw createHttpError(404, 'Device not found');
+        if (device.owner_id) throw createHttpError(400, 'Device already has owner');
+
+        // generate unique 6-char code [A-Z0-9]
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const generate = () => Array.from({ length: 6 }).map(() => chars[Math.floor(Math.random() * chars.length)]).join('');
+
+        let attempts = 0;
+        let code = null;
+        while (attempts < 10) {
+            const candidate = generate();
+            const exists = await Device.isClaimCodeExists(candidate);
+            if (!exists) { code = candidate; break; }
+            attempts += 1;
+        }
+        if (!code) throw createHttpError(500, 'Failed to generate unique claim code');
+
+        const updated = await Device.generateClaimCodeForDevice(deviceId, code);
+        return { device: updated, claimCode: code };
+    },
+
+    // User: claim device by claim code
+    claimDevice: async (claimCode, userId) => {
+        if (!claimCode) throw createHttpError(400, 'claimCode is required');
+        const normalized = String(claimCode).trim().toUpperCase();
+
+        const device = await Device.findDeviceByClaimCode(normalized);
+        if (!device) throw createHttpError(400, 'Invalid claim code');
+        if (device.owner_id) throw createHttpError(400, 'Device already has owner');
+
+        const updated = await Device.claimDeviceById(device.id, userId);
+        // ensure claim_code removed before returning to user
+        if (updated) updated.claim_code = null;
+        return updated;
+    },
+
+    // User/Admin: remove owner from device (unbind)
+    removeOwner: async (deviceId, userId, role) => {
+        const device = await Device.findById(deviceId);
+        if (!device) throw createHttpError(404, 'Device not found');
+
+        // allow admin or owner
+        const isAdmin = String(role || '').toLowerCase() === 'admin';
+        if (!isAdmin && device.owner_id !== userId) throw createHttpError(403, 'You are not the owner of this device');
+
+        const updated = await Device.removeOwnerFromDevice(deviceId);
+        // don't expose claim_code to users
+        if (updated) updated.claim_code = null;
+        return updated;
     },
 };
 

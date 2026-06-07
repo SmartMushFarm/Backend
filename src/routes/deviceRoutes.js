@@ -288,6 +288,70 @@ router.post('/:id/control', deviceController.controlDevice);
  */
 router.put('/:id/mode', authMiddleware, deviceController.changeMode);
 
+/**
+ * @openapi
+ * /api/devices/{id}/generate-claim-code:
+ *   post:
+ *     summary: Admin - Generate claim code for a device
+ *     tags: [Devices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Claim code generated
+ */
+router.post('/:id/generate-claim-code', authMiddleware, roleMiddleware('Admin'), deviceController.generateClaimCode);
+
+/**
+ * @openapi
+ * /api/devices/claim:
+ *   post:
+ *     summary: Claim a device using claim code
+ *     tags: [Devices]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [claimCode]
+ *             properties:
+ *               claimCode:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Device claimed
+ */
+router.post('/claim', authMiddleware, deviceController.claimDevice);
+
+/**
+ * @openapi
+ * /api/devices/{id}/remove-owner:
+ *   put:
+ *     summary: Remove device owner (unbind device from account)
+ *     tags: [Devices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Device unbound from owner
+ */
+router.put('/:id/remove-owner', authMiddleware, deviceController.removeOwner);
+
 // Preset apply
 /**
  * @openapi
