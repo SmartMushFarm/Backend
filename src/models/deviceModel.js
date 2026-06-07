@@ -2,8 +2,12 @@ const { pool } = require('../config/db');
 
 const Device = {
     findByUserId: async (userId) => {
+        // Exclude claim_code from user-facing results to avoid leaking claim codes
         const result = await pool.query(
-            `SELECT d.*, p.name as product_name FROM devices d
+            `SELECT d.id, d.owner_id, d.product_id, d.device_name, d.current_humidity, d.current_temperature,
+                    d.status, d.mist_status, d.fan_status, d.heater_status, d.light_status, d.mode, d.preset_id,
+                    p.name as product_name, d.created_at
+             FROM devices d
              LEFT JOIN products p ON d.product_id = p.id
              WHERE d.owner_id = $1 ORDER BY d.created_at DESC`,
             [userId]
@@ -17,6 +21,42 @@ const Device = {
              LEFT JOIN products p ON d.product_id = p.id
              WHERE d.id = $1`,
             [id]
+        );
+        return result.rows[0] || null;
+    },
+
+    // New: find device by claim code (exact match)
+    findDeviceByClaimCode: async (claimCode) => {
+        const result = await pool.query(`SELECT * FROM devices WHERE claim_code = $1`, [claimCode]);
+        return result.rows[0] || null;
+    },
+
+    // New: check if a claim code exists (not null)
+    isClaimCodeExists: async (claimCode) => {
+        const result = await pool.query(`SELECT 1 FROM devices WHERE claim_code = $1 LIMIT 1`, [claimCode]);
+        return result.rowCount > 0;
+    },
+
+    // New: set claim_code for a device
+    generateClaimCodeForDevice: async (deviceId, claimCode) => {
+        const result = await pool.query(`UPDATE devices SET claim_code = $1 WHERE id = $2 RETURNING *`, [claimCode, deviceId]);
+        return result.rows[0] || null;
+    },
+
+    // New: claim a device by id for a user (set owner_id and clear claim_code)
+    claimDeviceById: async (deviceId, userId) => {
+        const result = await pool.query(
+            `UPDATE devices SET owner_id = $1, claim_code = NULL WHERE id = $2 RETURNING *`,
+            [userId, deviceId]
+        );
+        return result.rows[0] || null;
+    },
+
+    // New: remove owner from device (unbind)
+    removeOwnerFromDevice: async (deviceId) => {
+        const result = await pool.query(
+            `UPDATE devices SET owner_id = NULL, preset_id = NULL, mode = 'Manual', claim_code = NULL WHERE id = $1 RETURNING *`,
+            [deviceId]
         );
         return result.rows[0] || null;
     },
