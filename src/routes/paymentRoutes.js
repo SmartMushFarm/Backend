@@ -26,10 +26,10 @@ const router = express.Router();
  *             type: object
  *             properties:
  *               order_id: { type: integer, example: 1 }
- *               payment_method: { type: string, example: COD }
+ *               payment_method: { type: string, enum: [COD, Banking, Momo, VNPAY, QR], example: QR }
  *     responses:
  *       201:
- *         description: Payment created
+ *         description: Payment created (includes qr_code if payment_method is QR)
  */
 router.post('/create', authMiddleware, paymentController.create);
 
