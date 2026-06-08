@@ -93,6 +93,18 @@ const router = express.Router();
  *           type: string
  *           nullable: true
  *           example: Da Nang
+ *     ChangePasswordInput:
+ *       type: object
+ *       required:
+ *         - old_password
+ *         - new_password
+ *       properties:
+ *         old_password:
+ *           type: string
+ *           example: "123456"
+ *         new_password:
+ *           type: string
+ *           example: "newpassword123"
  *     UsersResponse:
  *       type: object
  *       properties:
@@ -188,6 +200,31 @@ router.get('/me', authMiddleware, authController.me);
  *         description: User profile updated
  */
 router.put('/me', authMiddleware, authController.updateMe);
+
+/**
+ * @openapi
+ * /api/auth/change-password:
+ *   put:
+ *     tags:
+ *       - Auth
+ *     summary: Change current user's password
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ChangePasswordInput'
+ *           example:
+ *             old_password: "123456"
+ *             new_password: "newpassword123"
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       401:
+ *         description: Old password is incorrect
+ */
+router.put('/change-password', authMiddleware, authController.changePassword);
 
 /**
  * @openapi

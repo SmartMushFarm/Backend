@@ -63,6 +63,18 @@ const authController = {
         }
     },
 
+    changePassword: async (req, res) => {
+        try {
+            await authService.changePassword(req.user.id, req.body);
+            return res.status(200).json({
+                success: true,
+                message: 'Password changed successfully',
+            });
+        } catch (error) {
+            return sendError(res, error);
+        }
+    },
+
     getUsers: async (req, res) => {
         try {
             const users = await authService.getUsers();
