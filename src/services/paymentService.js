@@ -7,7 +7,8 @@ const createHttpError = (status, message) => {
     return error;
 };
 
-const VALID_METHODS = ['COD', 'Banking', 'Momo', 'VNPAY', 'QR'];
+const VALID_METHODS = ['COD', 'QR'];
+const QR_ENABLED_METHODS = ['QR'];
 
 const generateQRCode = (amount) => {
     const baseUrl = process.env.VIETQR_QUICK_LINK;
@@ -32,24 +33,24 @@ const paymentService = {
         if (existing) throw createHttpError(409, 'Payment already exists for this order');
 
         const paymentData = {
-            orderId: order_id,
-            paymentMethod: payment_method,
+            order_id,
+            payment_method,
             amount: order.total_amount
         };
 
-        // Generate QR code if payment method is QR
-        if (payment_method === 'QR') {
+        // Generate QR code for VNPAY, Momo, and QR payment methods
+        if (QR_ENABLED_METHODS.includes(payment_method)) {
             paymentData.qr_code = generateQRCode(order.total_amount);
         }
 
         return Payment.create(paymentData);
     },
 
-    getByOrderId: async (userId, orderId) => {
-        const order = await Order.findById(orderId);
+    getByOrderId: async (userId, order_id) => {
+        const order = await Order.findById(order_id);
         if (!order) throw createHttpError(404, 'Order not found');
         if (order.user_id !== userId) throw createHttpError(403, 'Forbidden');
-        const payment = await Payment.findByOrderId(orderId);
+        const payment = await Payment.findByOrderId(order_id);
         if (!payment) throw createHttpError(404, 'Payment not found');
         return payment;
     },
@@ -59,6 +60,40 @@ const paymentService = {
         if (!payment) throw createHttpError(404, 'Payment not found');
         // Update order status to Confirmed
         await Order.updateStatus(payment.order_id, 'Confirmed');
+        return payment;
+    },
+
+    getById: async (userId, paymentId) => {
+        const payment = await Payment.findById(paymentId);
+        if (!payment) throw createHttpError(404, 'Payment not found');
+        const order = await Order.findById(payment.order_id);
+        if (order.user_id !== userId) throw createHttpError(403, 'Forbidden');
+        return payment;
+    },
+
+    updateStatus: async (id, status) => {
+        const VALID_STATUSES = ['Pending', 'Paid', 'Failed', 'Refunded'];
+        if (!VALID_STATUSES.includes(status)) {
+            throw createHttpError(400, `Status must be one of: ${VALID_STATUSES.join(', ')}`);
+        }
+        const payment = await Payment.updateStatus(id, status);
+        if (!payment) throw createHttpError(404, 'Payment not found');
+        return payment;
+    },
+
+    failed: async (id) => {
+        const payment = await Payment.failed(id);
+        if (!payment) throw createHttpError(404, 'Payment not found');
+        // Update order status to Cancelled
+        await Order.updateStatus(payment.order_id, 'Cancelled');
+        return payment;
+    },
+
+    refund: async (id) => {
+        const payment = await Payment.refund(id);
+        if (!payment) throw createHttpError(404, 'Payment not found');
+        // Update order status back to Pending
+        await Order.updateStatus(payment.order_id, 'Pending');
         return payment;
     },
 };

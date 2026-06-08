@@ -26,7 +26,7 @@ const router = express.Router();
  *             type: object
  *             properties:
  *               order_id: { type: integer, example: 1 }
- *               payment_method: { type: string, enum: [COD, Banking, Momo, VNPAY, QR], example: QR }
+ *               payment_method: { type: string, enum: [COD, QR], example: QR }
  *     responses:
  *       201:
  *         description: Payment created (includes qr_code if payment_method is QR)
