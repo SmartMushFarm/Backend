@@ -148,6 +148,36 @@ const authService = {
         return updatedUser;
     },
 
+    changePassword: async (id, payload) => {
+        const oldPassword = payload.old_password || payload.current_password || '';
+        const newPassword = payload.new_password || '';
+
+        if (!oldPassword || !newPassword) {
+            throw createHttpError(400, 'old_password and new_password are required');
+        }
+
+        if (newPassword.length < 6) {
+            throw createHttpError(400, 'new_password must be at least 6 characters');
+        }
+
+        if (oldPassword === newPassword) {
+            throw createHttpError(400, 'new_password must be different from old_password');
+        }
+
+        const user = await User.findByIdWithPassword(id);
+        if (!user) throw createHttpError(404, 'User not found');
+
+        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+            throw createHttpError(401, 'Old password is incorrect');
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updatedUser = await User.updatePassword(id, hashedPassword);
+        if (!updatedUser) throw createHttpError(404, 'User not found');
+        return updatedUser;
+    },
+
     getAllUsers: async () => {
         return User.findAll();
     },

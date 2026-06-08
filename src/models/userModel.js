@@ -28,6 +28,18 @@ const User = {
         return result.rows[0] || null;
     },
 
+    findByIdWithPassword: async (id) => {
+        const query = `
+            SELECT id, name, email, password, phone, address, role, status
+            FROM ${USER_TABLE}
+            WHERE id = $1
+            LIMIT 1
+        `;
+
+        const result = await pool.query(query, [id]);
+        return result.rows[0] || null;
+    },
+
     findAll: async () => {
         const query = `
             SELECT id, name, email, phone, address, role, status
@@ -82,6 +94,18 @@ const User = {
 
         const values = [name || null, email || null, phone || null, address || null, id];
         const result = await pool.query(query, values);
+        return result.rows[0] || null;
+    },
+
+    updatePassword: async (id, hashedPassword) => {
+        const query = `
+            UPDATE ${USER_TABLE}
+            SET password = $1
+            WHERE id = $2
+            RETURNING id, name, email, phone, address, role, status
+        `;
+
+        const result = await pool.query(query, [hashedPassword, id]);
         return result.rows[0] || null;
     },
 
