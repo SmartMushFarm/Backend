@@ -37,7 +37,19 @@ const presetService = {
         const preset = await Preset.findById(presetId);
         if (!preset) throw createHttpError(404, 'Preset not found');
 
-        return Preset.applyToDevice(deviceId, presetId);
+        const applied = await Preset.applyToDevice(deviceId, presetId);
+
+        // start scheduler for this device so fan runs every hour for 10 minutes
+        try {
+            const presetScheduler = require('./presetSchedulerService');
+            // default interval 1 hour, duration 10 minutes
+            presetScheduler.startDevicePresetJob(deviceId, { intervalMs: 60 * 60 * 1000, durationMs: 10 * 60 * 1000 });
+        } catch (e) {
+            // log but don't fail the API
+            console.error('Failed to start preset scheduler:', e.message || e);
+        }
+
+        return applied;
     },
 };
 
