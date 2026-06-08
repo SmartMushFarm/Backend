@@ -24,6 +24,14 @@ try {
   console.error('Failed to schedule device inactivity check:', e);
 }
 
+// schedule preset-based periodic jobs (fan cycles)
+try {
+  const presetScheduler = require('./services/presetSchedulerService');
+  presetScheduler.initScheduler();
+} catch (e) {
+  console.error('Failed to initialize preset scheduler:', e);
+}
+
 /* ======================
    Start Server
 ====================== */

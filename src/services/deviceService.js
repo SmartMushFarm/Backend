@@ -165,6 +165,24 @@ const deviceService = {
     controlViaMqtt: async (id, { device, action }) => {
         const targetDevice = await Device.findById(id);
         if (!targetDevice) throw createHttpError(404, 'Device not found');
+        // Avoid sending duplicate/no-op commands by checking current DB state first
+        const fieldMap = {
+            mist: 'mist_status',
+            fan: 'fan_status',
+            heater: 'heater_status',
+            light: 'light_status',
+        };
+        const statusField = fieldMap[device];
+        const desiredOn = String(action).toLowerCase() === 'on';
+
+        if (statusField && typeof targetDevice[statusField] !== 'undefined') {
+            const current = !!targetDevice[statusField];
+            if (current === desiredOn) {
+                // no-op, skip publishing
+                return { skipped: true, reason: 'already in desired state' };
+            }
+        }
+
         // lazy-require to avoid circular dependency with mqttService
         const mqttService = require('./mqttService');
         return mqttService.publishCommand({ deviceName: targetDevice.device_name, device, action });
@@ -196,6 +214,15 @@ const deviceService = {
         assertOwner(device, userId, role);
         if (!mode || (mode !== 'Auto' && mode !== 'Manual')) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
         const updated = await Device.updateMode(id, mode);
+        // If switched to Manual, stop any preset scheduler job for this device
+        try {
+            if (mode === 'Manual') {
+                const presetScheduler = require('./presetSchedulerService');
+                presetScheduler.stopDevicePresetJob(id);
+            }
+        } catch (e) {
+            console.error('Failed to stop preset scheduler on mode change:', e.message || e);
+        }
         if (updated && String(role).toLowerCase() !== 'admin') updated.claim_code = null;
         return updated;
     },
