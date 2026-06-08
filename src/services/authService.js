@@ -17,6 +17,32 @@ const createHttpError = (status, message) => {
     return error;
 };
 
+const normalizeUserProfileInput = (payload, existingUser) => {
+    const data = {};
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'email')) {
+        throw createHttpError(400, 'email cannot be changed');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'name')) {
+        data.name = String(payload.name || '').trim();
+        if (!data.name) throw createHttpError(400, 'name cannot be empty');
+    } else {
+        data.name = existingUser.name;
+    }
+
+    data.email = existingUser.email;
+
+    data.phone = Object.prototype.hasOwnProperty.call(payload, 'phone')
+        ? String(payload.phone || '').trim() || null
+        : existingUser.phone;
+    data.address = Object.prototype.hasOwnProperty.call(payload, 'address')
+        ? String(payload.address || '').trim() || null
+        : existingUser.address;
+
+    return data;
+};
+
 const authService = {
     register: async (payload) => {
         const name = (payload.name || payload.full_name || '').trim();
@@ -71,6 +97,10 @@ const authService = {
             throw createHttpError(401, 'Invalid password');
         }
 
+        if (!process.env.JWT_SECRET) {
+            throw createHttpError(500, 'JWT_SECRET is not configured');
+        }
+
         const token = jwt.sign(
             {
                 id: user.id,
@@ -105,6 +135,17 @@ const authService = {
         const user = await User.updateStatus(id, status);
         if (!user) throw createHttpError(404, 'User not found');
         return user;
+    },
+
+    updateUserProfile: async (id, payload) => {
+        const existingUser = await User.findById(id);
+        if (!existingUser) throw createHttpError(404, 'User not found');
+
+        const data = normalizeUserProfileInput(payload, existingUser);
+
+        const updatedUser = await User.updateProfile(id, data);
+        if (!updatedUser) throw createHttpError(404, 'User not found');
+        return updatedUser;
     },
 
     getAllUsers: async () => {

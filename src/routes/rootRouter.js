@@ -7,6 +7,7 @@ const uploadRoutes = require('./uploadRoutes');
 const cartRoutes = require('./cartRoutes');
 const orderRoutes = require('./orderRoutes');
 const paymentRoutes = require('./paymentRoutes');
+const promotionRoutes = require('./promotionRoutes');
 const deviceRoutes = require('./deviceRoutes');
 const presetRoutes = require('./presetRoutes');
 // const componentRoutes = require('./componentRoutes'); // TODO: enable when components table is ready
@@ -26,6 +27,7 @@ router.use('/uploads', uploadRoutes);
 router.use('/cart', cartRoutes);
 router.use('/orders', orderRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/promotions', promotionRoutes);
 router.use('/devices', deviceRoutes);
 router.use('/presets', presetRoutes);
 // router.use('/components', componentRoutes); // TODO: enable when components table is ready

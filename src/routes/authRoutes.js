@@ -79,6 +79,20 @@ const router = express.Router();
  *         created_at:
  *           type: string
  *           format: date-time
+ *     UserUpdateInput:
+ *       type: object
+ *       properties:
+ *         name:
+ *           type: string
+ *           example: Nguyen Van B
+ *         phone:
+ *           type: string
+ *           nullable: true
+ *           example: 0987654321
+ *         address:
+ *           type: string
+ *           nullable: true
+ *           example: Da Nang
  *     UsersResponse:
  *       type: object
  *       properties:
@@ -153,6 +167,30 @@ router.get('/me', authMiddleware, authController.me);
 
 /**
  * @openapi
+ * /api/auth/me:
+ *   put:
+ *     tags:
+ *       - Auth
+ *     summary: Update current logged-in user profile
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UserUpdateInput'
+ *           example:
+ *             name: Nguyen Van B
+ *             phone: "0987654321"
+ *             address: Da Nang
+ *     responses:
+ *       200:
+ *         description: User profile updated
+ */
+router.put('/me', authMiddleware, authController.updateMe);
+
+/**
+ * @openapi
  * /api/auth/users:
  *   get:
  *     tags: [Auth]
@@ -163,6 +201,34 @@ router.get('/me', authMiddleware, authController.me);
  *         description: List of users
  */
 router.get('/users', authMiddleware, roleMiddleware('Admin'), authController.getUsers);
+
+/**
+ * @openapi
+ * /api/auth/users/{id}:
+ *   put:
+ *     tags: [Auth]
+ *     summary: Admin - Update user information
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UserUpdateInput'
+ *     responses:
+ *       200:
+ *         description: User updated
+ *       403:
+ *         description: Admin only
+ *       404:
+ *         description: User not found
+ */
+router.put('/users/:id', authMiddleware, roleMiddleware('Admin'), authController.updateUser);
 
 /**
  * @openapi
