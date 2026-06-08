@@ -80,7 +80,8 @@ create table payments (
     check (payment_status in ('Pending', 'Paid', 'Failed', 'Refunded')),
   amount numeric(10,2) check (amount >= 0),
   payment_method text
-    check (payment_method in ('COD', 'Banking', 'Momo', 'VNPAY')),
+    check (payment_method in ('COD', 'Banking', 'Momo', 'VNPAY', 'QR')),
+  qr_code varchar(500),
   paid_at timestamptz,
   created_at timestamptz default now()
 );

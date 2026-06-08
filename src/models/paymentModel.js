@@ -1,10 +1,11 @@
 const { pool } = require('../config/db');
 
 const Payment = {
-    create: async ({ orderId, paymentMethod, amount }) => {
+    create: async ({ orderId, paymentMethod, amount, qr_code }) => {
         const result = await pool.query(
-            `INSERT INTO payments (order_id, payment_method, amount) VALUES ($1, $2, $3) RETURNING *`,
-            [orderId, paymentMethod, amount]
+            `INSERT INTO payments (order_id, payment_method, amount, qr_code) 
+             VALUES ($1, $2, $3, $4) RETURNING *`,
+            [orderId, paymentMethod, amount, qr_code || null]
         );
         return result.rows[0];
     },

@@ -7,7 +7,15 @@ const createHttpError = (status, message) => {
     return error;
 };
 
-const VALID_METHODS = ['COD', 'Banking', 'Momo', 'VNPAY'];
+const VALID_METHODS = ['COD', 'Banking', 'Momo', 'VNPAY', 'QR'];
+
+const generateQRCode = (amount) => {
+    const baseUrl = process.env.VIETQR_QUICK_LINK;
+    if (!baseUrl) {
+        throw createHttpError(500, 'VietQR configuration is missing');
+    }
+    return `${baseUrl}${amount}`;
+};
 
 const paymentService = {
     create: async (userId, { order_id, payment_method }) => {
@@ -23,7 +31,18 @@ const paymentService = {
         const existing = await Payment.findByOrderId(order_id);
         if (existing) throw createHttpError(409, 'Payment already exists for this order');
 
-        return Payment.create({ orderId: order_id, paymentMethod: payment_method, amount: order.total_amount });
+        const paymentData = {
+            orderId: order_id,
+            paymentMethod: payment_method,
+            amount: order.total_amount
+        };
+
+        // Generate QR code if payment method is QR
+        if (payment_method === 'QR') {
+            paymentData.qr_code = generateQRCode(order.total_amount);
+        }
+
+        return Payment.create(paymentData);
     },
 
     getByOrderId: async (userId, orderId) => {
