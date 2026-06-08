@@ -8,6 +8,8 @@ const SENSOR_STABLE_AFTER_MIST_MS = 20000; // 20s
 // Memory
 const lastCommandMap = new Map(); // key: `${deviceName}:${target}` -> timestamp
 const mistPulseMap = new Map(); // key: deviceName -> { state: 'idle'|'pulsing'|'resting', restUntil, lastPulseAt }
+// mark devices that are currently under preset-scheduler run (skip normal auto rules)
+const presetRunningSet = new Set();
 
 const log = (...args) => console.log(...args);
 
@@ -97,6 +99,10 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
         if (!device.preset_id || !preset) return;
 
         const deviceName = device.device_name;
+        // If this device is currently running a preset job, skip normal auto rules
+        // but still enforce danger rules.
+        const isPresetRunning = presetRunningSet.has(deviceName);
+
         const curMist = !!device.mist_status;
         const curFan = !!device.fan_status;
         const curHeater = !!device.heater_status;
@@ -112,6 +118,11 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
             await sendCommandIfNeeded(device, 'heater', 'off', curHeater, 'max temp danger');
             await sendCommandIfNeeded(device, 'mist', 'off', curMist, 'max temp danger');
             await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'max temp danger');
+            return;
+        }
+
+        if (isPresetRunning) {
+            // skip remaining normal auto control while preset is running
             return;
         }
 
@@ -161,4 +172,14 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
     }
 }
 
-module.exports = { handleAutoControl };
+function markPresetRunning(deviceName) {
+    if (!deviceName) return;
+    presetRunningSet.add(deviceName);
+}
+
+function unmarkPresetRunning(deviceName) {
+    if (!deviceName) return;
+    presetRunningSet.delete(deviceName);
+}
+
+module.exports = { handleAutoControl, markPresetRunning, unmarkPresetRunning };
