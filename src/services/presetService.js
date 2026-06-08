@@ -42,8 +42,8 @@ const presetService = {
         // start scheduler for this device so fan runs every hour for 10 minutes
         try {
             const presetScheduler = require('./presetSchedulerService');
-            // default interval 1 hour, duration 10 minutes
-            presetScheduler.startDevicePresetJob(deviceId, { intervalMs: 60 * 60 * 1000, durationMs: 10 * 60 * 1000 });
+            // default interval 20 minutes, duration 3 minutes
+            presetScheduler.startDevicePresetJob(deviceId, { intervalMs: 20 * 60 * 1000, durationMs: 3 * 60 * 1000 });
         } catch (e) {
             // log but don't fail the API
             console.error('Failed to start preset scheduler:', e.message || e);

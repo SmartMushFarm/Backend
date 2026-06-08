@@ -5,7 +5,9 @@ const autoControl = require('./autoControlService');
 // In-memory job map: deviceId -> { intervalId, currentOffTimeout }
 const jobMap = new Map();
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+// Default: run every 20 minutes for 3 minutes
+const DEFAULT_INTERVAL_MS = 20 * 60 * 1000; // 20 minutes
+const DEFAULT_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 
 const log = (...args) => console.log('[PRESET-SCHED]', ...args);
 
@@ -55,7 +57,7 @@ async function runFanCycle(deviceId, durationMs) {
   }
 }
 
-async function startDevicePresetJob(deviceId, { intervalMs = ONE_HOUR_MS, durationMs = 10 * 60 * 1000 } = {}) {
+async function startDevicePresetJob(deviceId, { intervalMs = DEFAULT_INTERVAL_MS, durationMs = DEFAULT_DURATION_MS } = {}) {
   // If a job exists, restart with new params
   stopDevicePresetJob(deviceId);
 
@@ -85,8 +87,8 @@ async function initScheduler() {
     const all = await Device.getAll();
     const candidates = all.filter(d => d.mode === 'Auto' && d.preset_id);
     for (const d of candidates) {
-      // default: every 1 hour run 10 minutes
-      startDevicePresetJob(d.id);
+      // default: every 20 minutes run 3 minutes
+        startDevicePresetJob(d.id);
     }
     log('initialized scheduler for', candidates.length, 'devices');
   } catch (e) {
