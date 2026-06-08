@@ -13,6 +13,13 @@ const VALID_STATUSES = ['Pending', 'Confirmed', 'Shipping', 'Completed', 'Cancel
 const orderService = {
     checkout: async (userId, { shipping_address, promotion_id }) => {
         if (!shipping_address) throw createHttpError(400, 'shipping_address is required');
+        const promotionId = promotion_id === undefined || promotion_id === null || promotion_id === ''
+            ? null
+            : Number(promotion_id);
+
+        if (promotionId !== null && !Number.isInteger(promotionId)) {
+            throw createHttpError(400, 'promotion_id must be a valid integer');
+        }
 
         const cart = await Cart.getCartWithItems(userId);
         if (!cart || !cart.items || cart.items.length === 0) {
@@ -28,11 +35,10 @@ const orderService = {
         let subtotal = cart.items.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
         let totalAmount = subtotal;
 
-        if (promotion_id) {
-            const promo = await Order.findPromotion(promotion_id);
-            if (promo) {
-                if (promo.discount_percent > 0) totalAmount = subtotal * (1 - promo.discount_percent / 100);
-            }
+        if (promotionId !== null) {
+            const promo = await Order.findPromotion(promotionId);
+            if (!promo) throw createHttpError(400, 'Promotion not found');
+            if (promo.discount_percent > 0) totalAmount = subtotal * (1 - promo.discount_percent / 100);
         }
 
         const client = await pool.connect();
@@ -40,7 +46,7 @@ const orderService = {
             await client.query('BEGIN');
 
             const order = await Order.create(client, {
-                userId, shippingAddress: shipping_address, totalAmount, promotionId: promotion_id,
+                userId, shippingAddress: shipping_address, totalAmount, promotionId,
             });
 
             for (const item of cart.items) {

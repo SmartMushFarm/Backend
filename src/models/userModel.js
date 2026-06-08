@@ -62,6 +62,29 @@ const User = {
         return result.rows[0] || null;
     },
 
+    updateProfile: async (id, userData) => {
+        const {
+            name,
+            email,
+            phone,
+            address,
+        } = userData;
+
+        const query = `
+            UPDATE ${USER_TABLE}
+            SET name = COALESCE($1, name),
+                email = COALESCE($2, email),
+                phone = $3,
+                address = $4
+            WHERE id = $5
+            RETURNING id, name, email, phone, address, role, status
+        `;
+
+        const values = [name || null, email || null, phone || null, address || null, id];
+        const result = await pool.query(query, values);
+        return result.rows[0] || null;
+    },
+
     create: async (userData) => {
         const {
             name,

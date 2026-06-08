@@ -50,10 +50,41 @@ const authController = {
         }
     },
 
+    updateMe: async (req, res) => {
+        try {
+            const user = await authService.updateUserProfile(req.user.id, req.body);
+            return res.status(200).json({
+                success: true,
+                message: 'User profile updated',
+                user,
+            });
+        } catch (error) {
+            return sendError(res, error);
+        }
+    },
+
     getUsers: async (req, res) => {
         try {
             const users = await authService.getUsers();
             return res.status(200).json({ success: true, data: users });
+        } catch (error) {
+            return sendError(res, error);
+        }
+    },
+
+    updateUser: async (req, res) => {
+        try {
+            const { id } = req.params;
+            if (!id || isNaN(id)) {
+                return res.status(400).json({ success: false, message: 'Invalid user ID' });
+            }
+
+            const user = await authService.updateUserProfile(id, req.body);
+            return res.status(200).json({
+                success: true,
+                message: 'User updated',
+                user,
+            });
         } catch (error) {
             return sendError(res, error);
         }
