@@ -1,5 +1,6 @@
 const Device = require('../models/deviceModel');
 const deviceService = require('./deviceService');
+const autoControl = require('./autoControlService');
 
 // In-memory job map: deviceId -> { intervalId, currentOffTimeout }
 const jobMap = new Map();
@@ -23,6 +24,9 @@ async function runFanCycle(deviceId, durationMs) {
       return;
     }
 
+    // Mark preset running to prevent auto-control conflicts
+    try { autoControl.markPresetRunning(device.device_name); } catch (_) {}
+
     // Turn fan ON
     try {
       await deviceService.controlViaMqtt(device.id, { device: 'fan', action: 'on' });
@@ -39,6 +43,8 @@ async function runFanCycle(deviceId, durationMs) {
       } catch (e) {
         log('failed to turn fan off for', device.device_name, e.message || e);
       }
+      // unmark preset running after turning off
+      try { autoControl.unmarkPresetRunning(device.device_name); } catch (_) {}
     }, durationMs);
 
     const job = jobMap.get(deviceId) || {};
