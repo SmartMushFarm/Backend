@@ -20,16 +20,15 @@ async function runFanCycle(deviceId, durationMs) {
       return;
     }
 
-    // Only run when device still in Auto mode and has preset
     if (device.mode !== 'Auto' || !device.preset_id) {
       log('device not in Auto or no preset, skipping', deviceId);
       return;
     }
 
-    // Mark preset running to prevent auto-control conflicts
-    try { autoControl.markPresetRunning(device.device_name); } catch (_) {}
+    try {
+      autoControl.setPresetFanOverride(device.device_name, true);
+    } catch (_) {}
 
-    // Turn fan ON
     try {
       await deviceService.controlViaMqtt(device.id, { device: 'fan', action: 'on' });
       log('fan ON for', device.device_name);
@@ -37,20 +36,29 @@ async function runFanCycle(deviceId, durationMs) {
       log('failed to turn fan on for', device.device_name, e.message || e);
     }
 
-    // Schedule OFF after durationMs
     const offTimeout = setTimeout(async () => {
       try {
-        await deviceService.controlViaMqtt(device.id, { device: 'fan', action: 'off' });
-        log('fan OFF for', device.device_name);
+        // Set override to OFF BEFORE clearing, so auto-control never sees a gap
+        try { autoControl.setPresetFanOverride(device.device_name, false); } catch (_) {}
+
+        const refreshedDevice = await Device.findById(deviceId);
+        if (refreshedDevice) {
+          await deviceService.controlViaMqtt(refreshedDevice.id, { device: 'fan', action: 'off' });
+          log('fan OFF for', refreshedDevice.device_name);
+        } else {
+          log('device gone at OFF time for', device.device_name);
+        }
+
+        // Clear override after OFF is confirmed sent
+        try { autoControl.clearPresetFanOverride(device.device_name); } catch (_) {}
       } catch (e) {
         log('failed to turn fan off for', device.device_name, e.message || e);
       }
-      // unmark preset running after turning off
-      try { autoControl.unmarkPresetRunning(device.device_name); } catch (_) {}
     }, durationMs);
 
     const job = jobMap.get(deviceId) || {};
     job.currentOffTimeout = offTimeout;
+    job._deviceName = device.device_name;
     jobMap.set(deviceId, job);
   } catch (e) {
     log('runFanCycle error for', deviceId, e.message || e);
@@ -65,7 +73,7 @@ async function startDevicePresetJob(deviceId, { intervalMs = DEFAULT_INTERVAL_MS
   await runFanCycle(deviceId, durationMs);
 
   const intervalId = setInterval(() => runFanCycle(deviceId, durationMs), intervalMs);
-  jobMap.set(deviceId, { intervalId, currentOffTimeout: null, intervalMs, durationMs });
+  jobMap.set(deviceId, { intervalId, currentOffTimeout: null, intervalMs, durationMs, _deviceName: null });
   log('scheduled preset job for device', deviceId, `every ${intervalMs}ms for ${durationMs}ms`);
 }
 
@@ -77,6 +85,10 @@ function stopDevicePresetJob(deviceId) {
     if (job.currentOffTimeout) clearTimeout(job.currentOffTimeout);
   } catch (_) {}
   jobMap.delete(deviceId);
+  // Also clear any active preset fan override for this device
+  if (job._deviceName) {
+    try { autoControl.clearPresetFanOverride(job._deviceName); } catch (_) {}
+  }
   log('stopped preset job for device', deviceId);
   return true;
 }
@@ -87,8 +99,10 @@ async function initScheduler() {
     const all = await Device.getAll();
     const candidates = all.filter(d => d.mode === 'Auto' && d.preset_id);
     for (const d of candidates) {
-      // default: every 20 minutes run 3 minutes
         startDevicePresetJob(d.id);
+        // Store device name so stopDevicePresetJob can clear override on restart
+        const existing = jobMap.get(d.id);
+        if (existing) existing._deviceName = d.device_name;
     }
     log('initialized scheduler for', candidates.length, 'devices');
   } catch (e) {
