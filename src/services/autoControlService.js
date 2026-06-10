@@ -10,6 +10,9 @@ const lastCommandMap = new Map(); // key: `${deviceName}:${target}` -> timestamp
 const mistPulseMap = new Map(); // key: deviceName -> { state: 'idle'|'pulsing'|'resting', restUntil, lastPulseAt }
 // mark devices that are currently under preset-scheduler run (skip normal auto rules)
 const presetRunningSet = new Set();
+// maps deviceName -> { desiredFan: boolean|null, cycleEndsAt: number|null }
+// null means no preset cycle active; true=preset wants fan ON, false=preset wants fan OFF
+const presetDesiredFanState = new Map();
 
 const log = (...args) => console.log(...args);
 
@@ -126,11 +129,21 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
             return;
         }
 
-        // Fan rule
-        if (typeof preset.fan_on_humidity === 'number' && humidity > Number(preset.fan_on_humidity)) {
-            await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'humidity above fan_on_humidity');
-        } else if (typeof preset.fan_off_humidity === 'number' && humidity <= Number(preset.fan_off_humidity)) {
-            await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'humidity below/equal fan_off_humidity');
+        // Fan rule: check if preset cycle is overriding fan state first
+        const presetFanOverride = presetDesiredFanState.get(deviceName);
+        if (presetFanOverride === true) {
+            // preset cycle wants fan ON — don't let auto rules turn it off
+            await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'preset cycle: fan ON');
+        } else if (presetFanOverride === false) {
+            // preset cycle wants fan OFF — don't let auto rules turn it on
+            await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'preset cycle: fan OFF');
+        } else {
+            // no preset override active — apply normal fan rule
+            if (typeof preset.fan_on_humidity === 'number' && humidity > Number(preset.fan_on_humidity)) {
+                await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'humidity above fan_on_humidity');
+            } else if (typeof preset.fan_off_humidity === 'number' && humidity <= Number(preset.fan_off_humidity)) {
+                await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'humidity below/equal fan_off_humidity');
+            }
         }
 
         // Mist and Heater interaction
@@ -182,4 +195,26 @@ function unmarkPresetRunning(deviceName) {
     presetRunningSet.delete(deviceName);
 }
 
-module.exports = { handleAutoControl, markPresetRunning, unmarkPresetRunning };
+// Called by presetScheduler to tell autoControl what fan state the preset cycle wants.
+// desiredFan: true=preset wants fan ON, false=preset wants fan OFF, null=clear override
+function setPresetFanOverride(deviceName, desiredFan) {
+    if (!deviceName) return;
+    if (desiredFan === null || desiredFan === undefined) {
+        presetDesiredFanState.delete(deviceName);
+    } else {
+        presetDesiredFanState.set(deviceName, desiredFan);
+    }
+}
+
+function clearPresetFanOverride(deviceName) {
+    if (!deviceName) return;
+    presetDesiredFanState.delete(deviceName);
+}
+
+module.exports = {
+    handleAutoControl,
+    markPresetRunning,
+    unmarkPresetRunning,
+    setPresetFanOverride,
+    clearPresetFanOverride,
+};
