@@ -20,7 +20,7 @@ async function runFanCycle(deviceId, durationMs) {
       return;
     }
 
-    if (device.mode !== 'Auto' || !device.preset_id) {
+    if (String(device.mode || '').toLowerCase() !== 'auto' || !device.preset_id) {
       log('device not in Auto or no preset, skipping', deviceId);
       return;
     }
@@ -97,7 +97,7 @@ async function initScheduler() {
   try {
     // Load devices that are in Auto mode with preset applied
     const all = await Device.getAll();
-    const candidates = all.filter(d => d.mode === 'Auto' && d.preset_id);
+    const candidates = all.filter(d => String(d.mode || '').toLowerCase() === 'auto' && d.preset_id);
     for (const d of candidates) {
         startDevicePresetJob(d.id);
         // Store device name so stopDevicePresetJob can clear override on restart

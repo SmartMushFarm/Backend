@@ -40,14 +40,17 @@ const isMistStable = (deviceName) => {
 const sendCommandIfNeeded = async (device, target, action, currentStatus, reason) => {
     // device: device object, target: 'fan'|'heater'|'mist', action: 'on'|'off'
     const deviceName = device.device_name;
-    const desired = action === 'on';
+    const normalizedTarget = String(target || '').toLowerCase();
+    const normalizedAction = String(action || '').toLowerCase();
+    const desired = normalizedAction === 'on';
     if (currentStatus === desired) return false;
-    if (!canSendCommand(deviceName, target)) return false;
+    if (!canSendCommand(deviceName, normalizedTarget)) return false;
 
     try {
-        await mqttService.publishCommand({ deviceName, device: target, action });
-        recordCommand(deviceName, target);
-        log(`[AUTO] ${deviceName} ${target} ${action} - ${reason}`);
+        await mqttService.publishCommand({ deviceName, device: normalizedTarget, action: normalizedAction });
+        recordCommand(deviceName, normalizedTarget);
+        log(`[AUTO] ${deviceName} ${normalizedTarget} ${normalizedAction} - ${reason}`);
+
         return true;
     } catch (e) {
         console.error('[AUTO] publish failed', e);
@@ -98,7 +101,7 @@ const handleMistPulse = async (device, preset) => {
 async function handleAutoControl({ device, preset, temperature, humidity }) {
     try {
         if (!device) return;
-        if (device.mode !== 'Auto') return;
+        if (String(device.mode || '').toLowerCase() !== 'auto') return;
         if (!device.preset_id || !preset) return;
 
         const deviceName = device.device_name;
