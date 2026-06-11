@@ -94,7 +94,7 @@ const deviceController = {
             const { id } = req.params;
             const { device, action } = req.body;
 
-            const validDevices = ['fan', 'heater', 'mist', 'all'];
+            const validDevices = ['fan', 'heater', 'mist', 'light', 'all'];
             const validActions = ['on', 'off'];
 
             if (!device || !action) {
