@@ -1,8 +1,6 @@
 const { pool } = require('../config/db');
 const Cart = require('../models/cartModel');
 const Order = require('../models/orderModel');
-const User = require('../models/userModel');
-const NotificationService = require('./notificationService');
 
 const createHttpError = (status, message) => {
     const error = new Error(message);
@@ -11,12 +9,6 @@ const createHttpError = (status, message) => {
 };
 
 const VALID_STATUSES = ['Pending', 'Confirmed', 'Shipping', 'Completed', 'Cancelled'];
-const ORDER_STATUS_MAP = VALID_STATUSES.reduce((acc, status) => {
-    acc[status.toLowerCase()] = status;
-    return acc;
-}, {});
-
-const normalizeOrderStatus = (status) => ORDER_STATUS_MAP[String(status || '').trim().toLowerCase()];
 
 const orderService = {
     checkout: async (userId, { shipping_address, promotion_id }) => {
@@ -68,19 +60,7 @@ const orderService = {
             await client.query(`DELETE FROM cart_items WHERE cart_id = $1`, [cart.id]);
             await client.query('COMMIT');
 
-            const createdOrder = await Order.findById(order.id);
-
-            try {
-                const customer = await User.findById(userId);
-                NotificationService.sendAdminNotification('New Order', {
-                    orderId: order.id,
-                    customerName: customer && customer.name ? customer.name : `Khách hàng #${userId}`,
-                }).catch(console.error);
-            } catch (notifyError) {
-                console.error('Failed to send NewOrder admin notification:', notifyError);
-            }
-
-            return createdOrder;
+            return Order.findById(order.id);
         } catch (err) {
             await client.query('ROLLBACK');
             throw err;
@@ -102,20 +82,17 @@ const orderService = {
         const order = await Order.findById(orderId);
         if (!order) throw createHttpError(404, 'Order not found');
         if (order.user_id !== userId) throw createHttpError(403, 'Forbidden');
-        if (String(order.status || '').trim().toLowerCase() !== 'pending') {
-            throw createHttpError(400, 'Only Pending orders can be cancelled');
-        }
+        if (order.status !== 'Pending') throw createHttpError(400, 'Only Pending orders can be cancelled');
         return Order.updateStatus(orderId, 'Cancelled');
     },
 
     getAllOrders: async (filters) => Order.findAll(filters),
 
     updateOrderStatus: async (id, status) => {
-        const normalizedStatus = normalizeOrderStatus(status);
-        if (!normalizedStatus) {
+        if (!VALID_STATUSES.includes(status)) {
             throw createHttpError(400, `status must be one of: ${VALID_STATUSES.join(', ')}`);
         }
-        const order = await Order.updateStatus(id, normalizedStatus);
+        const order = await Order.updateStatus(id, status);
         if (!order) throw createHttpError(404, 'Order not found');
         return order;
     },
