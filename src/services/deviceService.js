@@ -20,15 +20,29 @@ const didTurnOn = (deviceId, field, previousValue, currentValue) => {
     if (!deviceService._lastKnownControlStates) {
         deviceService._lastKnownControlStates = new Map();
     }
+    if (!deviceService._lastNotificationTime) {
+        deviceService._lastNotificationTime = new Map();
+    }
 
     const key = `${deviceId}:${field}`;
+    const now = Date.now();
+    const current = toStatusBoolean(currentValue);
+
+    // Throttling: if we sent a notification for this 'on' state change within the last 5 seconds, don't send again.
+    const lastNotif = deviceService._lastNotificationTime.get(key) || 0;
+    const isRecentlyNotified = now - lastNotif < 5000;
+
     const previous = deviceService._lastKnownControlStates.has(key)
         ? deviceService._lastKnownControlStates.get(key)
         : toStatusBoolean(previousValue);
-    const current = toStatusBoolean(currentValue);
 
     deviceService._lastKnownControlStates.set(key, current);
-    return previous !== true && current === true;
+
+    if (previous !== true && current === true && !isRecentlyNotified) {
+        deviceService._lastNotificationTime.set(key, now);
+        return true;
+    }
+    return false;
 };
 
 const assertOwner = (device, userId, role) => {
@@ -360,31 +374,10 @@ Device.updateDeviceFromSensor = async (params) => {
     const updated = await originalUpdateDeviceFromSensor(params);
 
     if (prevDevice && updated && updated.owner_id) {
-        const prevStatus = prevDevice.status ? String(prevDevice.status).toLowerCase() : '';
-        const currentStatus = updated.status ? String(updated.status).toLowerCase() : '';
-        const currentMode = updated.mode ? String(updated.mode).toLowerCase() : '';
+        // 1. Common status notifications (Active again, Transitions)
+        await handleDeviceStatusNotifications(prevDevice, updated);
 
-        // 1. Device Active Again
-        if (prevStatus === 'inactive' && currentStatus === 'active') {
-            try {
-                const NotificationService = require('./notificationService');
-                NotificationService.sendDeviceActiveAgain(updated.owner_id, updated.device_name, {
-                    deviceId: updated.id,
-                }).catch(console.error);
-            } catch (err) {
-                console.error('Failed to send DeviceActiveAgain notification:', err);
-            }
-        }
-
-        // 2. Control status notifications: only when a status turns true.
-        try {
-            const preset = updated.preset_id ? await Preset.findById(updated.preset_id) : null;
-            await checkDeviceControlTransitions(prevDevice, updated, preset);
-        } catch (err) {
-            console.error('Failed to check transitions in updateDeviceFromSensor:', err);
-        }
-
-        // 3. Danger alerts
+        // 2. Danger alerts (specific to sensor data)
         try {
             let maxTempDanger = 35;
             let dangerHumidity = 90;
@@ -432,12 +425,24 @@ Device.updateDeviceOutputStatus = async (params) => {
     const updated = await originalUpdateDeviceOutputStatus(params);
 
     if (prevDevice && updated && updated.owner_id) {
-        const prevStatus = prevDevice.status ? String(prevDevice.status).toLowerCase() : '';
-        const currentStatus = updated.status ? String(updated.status).toLowerCase() : '';
-        const currentMode = updated.mode ? String(updated.mode).toLowerCase() : '';
+        await handleDeviceStatusNotifications(prevDevice, updated);
+    }
+    return updated;
+};
 
-        // 1. Device Active Again
-        if (prevStatus === 'inactive' && currentStatus === 'active') {
+const handleDeviceStatusNotifications = async (prevDevice, updated) => {
+    const prevStatus = prevDevice.status ? String(prevDevice.status).toLowerCase() : '';
+    const currentStatus = updated.status ? String(updated.status).toLowerCase() : '';
+
+    // 1. Device Active Again
+    if (prevStatus === 'inactive' && currentStatus === 'active') {
+        const key = `${updated.id}:active_again`;
+        const now = Date.now();
+        if (!deviceService._lastNotificationTime) deviceService._lastNotificationTime = new Map();
+        const last = deviceService._lastNotificationTime.get(key) || 0;
+
+        if (now - last > 1800000) { // Throttle 'active again' to once per 30s
+            deviceService._lastNotificationTime.set(key, now);
             try {
                 const NotificationService = require('./notificationService');
                 NotificationService.sendDeviceActiveAgain(updated.owner_id, updated.device_name, {
@@ -447,16 +452,15 @@ Device.updateDeviceOutputStatus = async (params) => {
                 console.error('Failed to send DeviceActiveAgain notification:', err);
             }
         }
-
-        // 2. Control status notifications: only when a status turns true.
-        try {
-            const preset = updated.preset_id ? await Preset.findById(updated.preset_id) : null;
-            await checkDeviceControlTransitions(prevDevice, updated, preset);
-        } catch (err) {
-            console.error('Failed to check transitions in updateDeviceOutputStatus:', err);
-        }
     }
-    return updated;
+
+    // 2. Control status notifications: only when a status turns true.
+    try {
+        const preset = updated.preset_id ? await Preset.findById(updated.preset_id) : null;
+        await checkDeviceControlTransitions(prevDevice, updated, preset);
+    } catch (err) {
+        console.error('Failed to check transitions:', err);
+    }
 };
 
 const checkDeviceControlTransitions = async (device, updatedDevice, preset) => {
