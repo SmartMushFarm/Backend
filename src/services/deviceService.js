@@ -48,6 +48,17 @@ const deviceService = {
         const device = await Device.findById(deviceId);
         if (!device) throw createHttpError(404, 'Device not found');
 
+        // Check for "Back Online" transition
+        if (device.status === 'Inactive' && device.owner_id) {
+            try {
+                const NotificationService = require('./notificationService');
+                await NotificationService.sendDeviceActiveAgain(device.owner_id, device.device_name, { deviceId: device.id });
+                // Clear repeat notification timer
+                const { clearLastNotifiedAt } = require('./deviceInactivityService');
+                clearLastNotifiedAt(device.id);
+            } catch (e) { console.error('Notify back online error:', e); }
+        }
+
         await Device.updateSensorData(deviceId, data);
         await Device.insertSensorHistory({ deviceId, ...data });
 
@@ -78,6 +89,17 @@ const deviceService = {
 
         const device = await Device.findDeviceByName(deviceName);
         if (!device) { console.log('Device not found in DB:', deviceName); return null; }
+
+        // Check for "Back Online" transition
+        if (device.status === 'Inactive' && device.owner_id) {
+            try {
+                const NotificationService = require('./notificationService');
+                await NotificationService.sendDeviceActiveAgain(device.owner_id, device.device_name, { deviceId: device.id });
+                // Clear repeat notification timer
+                const { clearLastNotifiedAt } = require('./deviceInactivityService');
+                clearLastNotifiedAt(device.id);
+            } catch (e) { console.error('Notify back online error:', e); }
+        }
 
         const outputStatus = mqttData.outputStatus || mqttData.relayStatus || {};
         const temperature = Number(mqttData.temperature);
@@ -155,6 +177,17 @@ const deviceService = {
 
         const device = await Device.findDeviceByName(deviceName);
         if (!device) { console.log('Device not found in DB:', deviceName); return null; }
+
+        // Check for "Back Online" transition
+        if (device.status === 'Inactive' && device.owner_id) {
+            try {
+                const NotificationService = require('./notificationService');
+                await NotificationService.sendDeviceActiveAgain(device.owner_id, device.device_name, { deviceId: device.id });
+                // Clear repeat notification timer
+                const { clearLastNotifiedAt } = require('./deviceInactivityService');
+                clearLastNotifiedAt(device.id);
+            } catch (e) { console.error('Notify back online error:', e); }
+        }
 
         const outputStatus = mqttData.outputStatus || mqttData.relayStatus || {};
         // mark device as Active when receiving status update
@@ -263,6 +296,15 @@ const deviceService = {
         if (device.owner_id) throw createHttpError(400, 'Device already has owner');
 
         const updated = await Device.claimDeviceById(device.id, userId);
+
+        // Notify user about successful claim
+        if (updated && updated.owner_id) {
+            try {
+                const NotificationService = require('./notificationService');
+                await NotificationService.sendDeviceClaimed(updated.owner_id, updated.device_name, { deviceId: updated.id });
+            } catch (e) { console.error('Notify claim error:', e); }
+        }
+
         // ensure claim_code removed before returning to user
         if (updated) updated.claim_code = null;
         return updated;

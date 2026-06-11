@@ -213,55 +213,23 @@ const NotificationService = {
     },
 
     sendAutoControlActivated: async (userId, deviceName, presetName, options = {}) => {
-        return NotificationService.sendPresetApplied(userId, deviceName, presetName, options);
+        // Feature removed as per user request
+        return;
     },
 
     sendPresetApplied: async (userId, deviceName, presetName, options = {}) => {
-        try {
-            const normalizedOptions = isPlainObject(options) ? options : {};
-            const normalizedPresetName = presetName || DEFAULT_PRESET_NAME;
-
-            await Notification.create(buildNotificationPayload({
-                userId,
-                deviceId: normalizedOptions.deviceId,
-                title: 'Preset Applied',
-                message: buildPresetAppliedMessage(normalizedPresetName, deviceName),
-            }));
-        } catch (error) {
-            console.error('Error sending PresetApplied notification:', error);
-        }
+        // Feature removed as per user request
+        return;
     },
 
     sendFanCycleRunning: async (userId, presetName = DEFAULT_PRESET_NAME, durationMinutes = 3, options = {}) => {
-        try {
-            const normalizedOptions = isPlainObject(durationMinutes) ? durationMinutes : options;
-            const normalizedDuration = Number.isFinite(Number(durationMinutes)) ? Number(durationMinutes) : 3;
-            const normalizedPresetName = presetName || DEFAULT_PRESET_NAME;
-
-            await Notification.create(buildNotificationPayload({
-                userId,
-                deviceId: normalizedOptions.deviceId,
-                title: 'Fan Cycle Running',
-                message: buildFanCycleRunningMessage(normalizedPresetName, normalizedDuration),
-            }));
-        } catch (error) {
-            console.error('Error sending FanCycleRunning notification:', error);
-        }
+        // Feature removed as per user request
+        return;
     },
 
     sendMistPulseActive: async (userId, options = {}) => {
-        try {
-            const normalizedOptions = isPlainObject(options) ? options : {};
-
-            await Notification.create(buildNotificationPayload({
-                userId,
-                deviceId: normalizedOptions.deviceId,
-                title: 'Mist Pulse Active',
-                message: buildMistPulseActiveMessage(),
-            }));
-        } catch (error) {
-            console.error('Error sending MistPulseActive notification:', error);
-        }
+        // Feature removed as per user request
+        return;
     },
 
     sendPresetScheduleNotification: async (event, {
@@ -271,64 +239,13 @@ const NotificationService = {
         presetName = DEFAULT_PRESET_NAME,
         durationMinutes = 3,
     } = {}) => {
-        const presetEvent = getPresetNotificationEvent(event);
-        const normalizedPresetName = presetName || DEFAULT_PRESET_NAME;
-
-        if (!presetEvent) {
-            console.warn(`Unsupported preset notification event: ${event}`);
-            return;
-        }
-
-        if (presetEvent === 'preset_applied') {
-            await NotificationService.sendPresetApplied(userId, deviceName, normalizedPresetName, { deviceId });
-            return;
-        }
-
-        if (presetEvent === 'fan_cycle_running') {
-            await NotificationService.sendFanCycleRunning(userId, normalizedPresetName, durationMinutes, { deviceId });
-            return;
-        }
-
-        if (presetEvent === 'mist_pulse_active') {
-            await NotificationService.sendMistPulseActive(userId, { deviceId });
-        }
+        // Feature removed as per user request
+        return;
     },
 
     sendControlCommandSent: async (userId, deviceName, target, reason, options = {}) => {
-        try {
-            const normalizedTarget = normalizeStatus(target);
-            const normalizedReason = normalizeStatus(reason);
-            const normalizedOptions = isPlainObject(options) ? options : {};
-
-            if (normalizedTarget === 'mist') {
-                await NotificationService.sendMistPulseActive(userId, { deviceId: normalizedOptions.deviceId });
-                return;
-            }
-
-            if (normalizedTarget === 'fan') {
-                const presetName = normalizedReason.includes('preset')
-                    ? String(reason || '').replace(/^preset:\s*/i, '').trim() || DEFAULT_PRESET_NAME
-                    : DEFAULT_PRESET_NAME;
-                await NotificationService.sendFanCycleRunning(userId, presetName, 3, { deviceId: normalizedOptions.deviceId });
-                return;
-            }
-
-            const targetMap = { fan: 'Quạt', mist: 'Máy phun sương', heater: 'Máy sưởi', light: 'Đèn' };
-            const iconMap = { fan: '💨', mist: '💧', heater: '🔥', light: '💡' };
-            const icon = iconMap[normalizedTarget] || '⚙️';
-            const targetName = targetMap[normalizedTarget] || target;
-            const message = `${icon} ${targetName} được bật tự động (${reason})` + (deviceName ? ` ở ${deviceName}` : '');
-
-            await Notification.create({
-                user_id: userId,
-                device_id: normalizedOptions.deviceId || null,
-                type: 'Info',
-                title: `${targetName} đã hoạt động`,
-                message,
-            });
-        } catch (error) {
-            console.error('Error sending ControlCommandSent notification:', error);
-        }
+        // Feature removed as per user request
+        return;
     },
 };
 
