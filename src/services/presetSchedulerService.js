@@ -48,9 +48,7 @@ async function runFanCycle(deviceId, durationMs) {
         } else {
           log('device gone at OFF time for', device.device_name);
         }
-
-        // Clear override after OFF is confirmed sent
-        try { autoControl.clearPresetFanOverride(device.device_name); } catch (_) {}
+        // Keep override=false until next cycle starts so auto-control doesn't turn fan back on
       } catch (e) {
         log('failed to turn fan off for', device.device_name, e.message || e);
       }
