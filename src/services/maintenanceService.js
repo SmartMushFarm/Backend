@@ -8,18 +8,12 @@ const createHttpError = (status, message) => {
     return error;
 };
 
-const notifyAdmins = async (title, message, deviceId = null) => {
+const notifyAdmins = async (title, message) => {
     try {
         const { pool } = require('../config/db');
-        const admins = await pool.query(`SELECT id FROM users WHERE LOWER(role) = LOWER($1)`, ['Admin']);
+        const admins = await pool.query(`SELECT id FROM users WHERE role = 'Admin'`);
         for (const admin of admins.rows) {
-            await Notification.create({
-                user_id: admin.id,
-                device_id: deviceId,
-                title,
-                message,
-                type: 'Maintenance',
-            });
+            await Notification.create({ userId: admin.id, title, message, type: 'Maintenance' });
         }
     } catch (_) {}
 };
@@ -33,7 +27,7 @@ const maintenanceService = {
         if (device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
 
         const req = await Maintenance.create({ userId, deviceId: device_id, title, description, priority });
-        await notifyAdmins('New Maintenance Request', `User submitted: ${title}`, device_id);
+        await notifyAdmins('New Maintenance Request', `User submitted: ${title}`);
         return req;
     },
 
@@ -64,13 +58,7 @@ const maintenanceService = {
         if (!req) throw createHttpError(404, 'Not found');
         if (req.status !== 'Pending') throw createHttpError(400, 'Only Pending requests can be approved');
         const updated = await Maintenance.updateStatus(id, 'Received', { assignedAdminId: adminId });
-        await Notification.create({
-            user_id: req.user_id,
-            device_id: req.device_id,
-            title: 'Maintenance Approved',
-            message: `Your request "${req.title}" has been approved.`,
-            type: 'Maintenance',
-        });
+        await Notification.create({ userId: req.user_id, title: 'Maintenance Approved', message: `Your request "${req.title}" has been approved.`, type: 'Maintenance' });
         return updated;
     },
 
@@ -85,13 +73,7 @@ const maintenanceService = {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Not found');
         const updated = await Maintenance.updateStatus(id, 'Cancelled', { adminNote: admin_note });
-        await Notification.create({
-            user_id: req.user_id,
-            device_id: req.device_id,
-            title: 'Maintenance Cancelled',
-            message: admin_note || 'Your request has been cancelled.',
-            type: 'Maintenance',
-        });
+        await Notification.create({ userId: req.user_id, title: 'Maintenance Cancelled', message: admin_note || 'Your request has been cancelled.', type: 'Maintenance' });
         return updated;
     },
 
@@ -101,13 +83,7 @@ const maintenanceService = {
         if (req.status !== 'Processing') throw createHttpError(400, 'Only Processing requests can be completed');
         const now = new Date().toISOString();
         const updated = await Maintenance.updateStatus(id, 'Completed', { completedAt: now });
-        await Notification.create({
-            user_id: req.user_id,
-            device_id: req.device_id,
-            title: 'Maintenance Completed',
-            message: `Your request "${req.title}" has been completed.`,
-            type: 'Maintenance',
-        });
+        await Notification.create({ userId: req.user_id, title: 'Maintenance Completed', message: `Your request "${req.title}" has been completed.`, type: 'Maintenance' });
         return updated;
     },
 };

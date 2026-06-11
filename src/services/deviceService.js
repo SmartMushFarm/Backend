@@ -8,43 +8,6 @@ const createHttpError = (status, message) => {
     return error;
 };
 
-const toStatusBoolean = (value) => {
-    if (value === true || value === 1) return true;
-    if (value === false || value === 0 || value === null || value === undefined) return false;
-
-    const normalized = String(value).trim().toLowerCase();
-    return ['true', '1', 'on', 'active', 'yes'].includes(normalized);
-};
-
-const didTurnOn = (deviceId, field, previousValue, currentValue) => {
-    if (!deviceService._lastKnownControlStates) {
-        deviceService._lastKnownControlStates = new Map();
-    }
-    if (!deviceService._lastNotificationTime) {
-        deviceService._lastNotificationTime = new Map();
-    }
-
-    const key = `${deviceId}:${field}`;
-    const now = Date.now();
-    const current = toStatusBoolean(currentValue);
-
-    // Throttling: if we sent a notification for this 'on' state change within the last 5 seconds, don't send again.
-    const lastNotif = deviceService._lastNotificationTime.get(key) || 0;
-    const isRecentlyNotified = now - lastNotif < 5000;
-
-    const previous = deviceService._lastKnownControlStates.has(key)
-        ? deviceService._lastKnownControlStates.get(key)
-        : toStatusBoolean(previousValue);
-
-    deviceService._lastKnownControlStates.set(key, current);
-
-    if (previous !== true && current === true && !isRecentlyNotified) {
-        deviceService._lastNotificationTime.set(key, now);
-        return true;
-    }
-    return false;
-};
-
 const assertOwner = (device, userId, role) => {
     if (!device) throw createHttpError(404, 'Device not found');
     if (role !== 'Admin' && device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
@@ -95,8 +58,7 @@ const deviceService = {
                 try {
                     const Notif = require('../models/notificationModel');
                     await Notif.create({
-                        user_id: device.owner_id,
-                        device_id: device.id,
+                        userId: device.owner_id,
                         title: 'Device Alert',
                         message: warnings.join(', '),
                         type: 'Danger',
@@ -173,7 +135,7 @@ const deviceService = {
 
         // Auto control: only when device in Auto mode and has preset_id
         try {
-            if (updatedDevice && String(updatedDevice.mode || '').toLowerCase() === 'auto' && updatedDevice.preset_id) {
+            if (updatedDevice && updatedDevice.mode === 'Auto' && updatedDevice.preset_id) {
                 const preset = await Preset.findById(updatedDevice.preset_id);
                 if (preset) {
                     // fire-and-forget; lazy-require to avoid circular dependency
@@ -204,16 +166,14 @@ const deviceService = {
         const targetDevice = await Device.findById(id);
         if (!targetDevice) throw createHttpError(404, 'Device not found');
         // Avoid sending duplicate/no-op commands by checking current DB state first
-        const normalizedDevice = String(device || '').toLowerCase();
-        const normalizedAction = String(action || '').toLowerCase();
         const fieldMap = {
             mist: 'mist_status',
             fan: 'fan_status',
             heater: 'heater_status',
             light: 'light_status',
         };
-        const statusField = fieldMap[normalizedDevice];
-        const desiredOn = normalizedAction === 'on';
+        const statusField = fieldMap[device];
+        const desiredOn = String(action).toLowerCase() === 'on';
 
         if (statusField && typeof targetDevice[statusField] !== 'undefined') {
             const current = !!targetDevice[statusField];
@@ -225,7 +185,7 @@ const deviceService = {
 
         // lazy-require to avoid circular dependency with mqttService
         const mqttService = require('./mqttService');
-        return mqttService.publishCommand({ deviceName: targetDevice.device_name, device: normalizedDevice, action: normalizedAction });
+        return mqttService.publishCommand({ deviceName: targetDevice.device_name, device, action });
     },
 
     getHistory: async (id, user, from, to) => {
@@ -252,14 +212,11 @@ const deviceService = {
     changeMode: async (id, userId, role, mode) => {
         const device = await Device.findById(id);
         assertOwner(device, userId, role);
-        const normalizedMode = String(mode || '').trim().toLowerCase();
-        const modeMap = { auto: 'Auto', manual: 'Manual' };
-        const canonicalMode = modeMap[normalizedMode];
-        if (!canonicalMode) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
-        const updated = await Device.updateMode(id, canonicalMode);
+        if (!mode || (mode !== 'Auto' && mode !== 'Manual')) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
+        const updated = await Device.updateMode(id, mode);
         // If switched to Manual, stop any preset scheduler job for this device
         try {
-            if (canonicalMode === 'Manual') {
+            if (mode === 'Manual') {
                 const presetScheduler = require('./presetSchedulerService');
                 presetScheduler.stopDevicePresetJob(id);
             }
@@ -328,205 +285,3 @@ const deviceService = {
 };
 
 module.exports = deviceService;
-
-// --- DECORATORS FOR NOTIFICATIONS (ADDITIVE ONLY) ---
-const originalClaimDevice = deviceService.claimDevice;
-deviceService.claimDevice = async (claimCode, userId) => {
-    const updated = await originalClaimDevice(claimCode, userId);
-    if (updated) {
-        try {
-            const NotificationService = require('./notificationService');
-            NotificationService.sendDeviceClaimed(userId, updated.device_name, {
-                deviceId: updated.id,
-            }).catch(console.error);
-        } catch (err) {
-            console.error('Failed to send DeviceClaimed notification:', err);
-        }
-    }
-    return updated;
-};
-
-const originalChangeMode = deviceService.changeMode;
-deviceService.changeMode = async (id, userId, role, mode) => {
-    const deviceBefore = await Device.findById(id);
-    const updated = await originalChangeMode(id, userId, role, mode);
-    const isModeAuto = mode && String(mode).toLowerCase() === 'auto';
-    const wasBeforeAuto = deviceBefore && deviceBefore.mode && String(deviceBefore.mode).toLowerCase() === 'auto';
-    if (updated && isModeAuto && !wasBeforeAuto && updated.preset_id && updated.owner_id) {
-        try {
-            const preset = await Preset.findById(updated.preset_id);
-            if (preset) {
-                const NotificationService = require('./notificationService');
-                NotificationService.sendAutoControlActivated(updated.owner_id, updated.device_name, preset.preset_name, {
-                    deviceId: updated.id,
-                }).catch(console.error);
-            }
-        } catch (err) {
-            console.error('Failed to send AutoControlActivated notification on mode change:', err);
-        }
-    }
-    return updated;
-};
-
-const originalUpdateDeviceFromSensor = Device.updateDeviceFromSensor;
-Device.updateDeviceFromSensor = async (params) => {
-    const prevDevice = await Device.findById(params.id);
-    const updated = await originalUpdateDeviceFromSensor(params);
-
-    if (prevDevice && updated && updated.owner_id) {
-        // 1. Common status notifications (Active again, Transitions)
-        await handleDeviceStatusNotifications(prevDevice, updated);
-
-        // 2. Danger alerts (specific to sensor data)
-        try {
-            let maxTempDanger = 35;
-            let dangerHumidity = 90;
-            const preset = updated.preset_id ? await Preset.findById(updated.preset_id) : null;
-            if (preset) {
-                if (typeof preset.max_temp_danger === 'number') maxTempDanger = Number(preset.max_temp_danger);
-                if (typeof preset.danger_humidity === 'number') dangerHumidity = Number(preset.danger_humidity);
-            }
-
-            if (!deviceService._lastAlertSentAt) deviceService._lastAlertSentAt = new Map();
-            const now = Date.now();
-            const NotificationService = require('./notificationService');
-
-            if (updated.current_temperature >= maxTempDanger) {
-                const key = `${updated.id}:temp`;
-                const lastAlert = deviceService._lastAlertSentAt.get(key) || 0;
-                if (now - lastAlert >= 10 * 60 * 1000) {
-                    deviceService._lastAlertSentAt.set(key, now);
-                    await NotificationService.sendDangerousTemp(updated.owner_id, updated.device_name, updated.current_temperature, {
-                        deviceId: updated.id,
-                    });
-                }
-            }
-
-            if (updated.current_humidity >= dangerHumidity) {
-                const key = `${updated.id}:humidity`;
-                const lastAlert = deviceService._lastAlertSentAt.get(key) || 0;
-                if (now - lastAlert >= 10 * 60 * 1000) {
-                    deviceService._lastAlertSentAt.set(key, now);
-                    await NotificationService.sendDangerousHumidity(updated.owner_id, updated.device_name, updated.current_humidity, {
-                        deviceId: updated.id,
-                    });
-                }
-            }
-        } catch (err) {
-            console.error('Failed processing danger alerts:', err);
-        }
-    }
-    return updated;
-};
-
-const originalUpdateDeviceOutputStatus = Device.updateDeviceOutputStatus;
-Device.updateDeviceOutputStatus = async (params) => {
-    const prevDevice = await Device.findById(params.id);
-    const updated = await originalUpdateDeviceOutputStatus(params);
-
-    if (prevDevice && updated && updated.owner_id) {
-        await handleDeviceStatusNotifications(prevDevice, updated);
-    }
-    return updated;
-};
-
-const handleDeviceStatusNotifications = async (prevDevice, updated) => {
-    const prevStatus = prevDevice.status ? String(prevDevice.status).toLowerCase() : '';
-    const currentStatus = updated.status ? String(updated.status).toLowerCase() : '';
-
-    // 1. Device Active Again
-    if (prevStatus === 'inactive' && currentStatus === 'active') {
-        const key = `${updated.id}:active_again`;
-        const now = Date.now();
-        if (!deviceService._lastNotificationTime) deviceService._lastNotificationTime = new Map();
-        const last = deviceService._lastNotificationTime.get(key) || 0;
-
-        if (now - last > 1800000) { // Throttle 'active again' to once per 30s
-            deviceService._lastNotificationTime.set(key, now);
-            try {
-                const NotificationService = require('./notificationService');
-                NotificationService.sendDeviceActiveAgain(updated.owner_id, updated.device_name, {
-                    deviceId: updated.id,
-                }).catch(console.error);
-            } catch (err) {
-                console.error('Failed to send DeviceActiveAgain notification:', err);
-            }
-        }
-    }
-
-    // 2. Control status notifications: only when a status turns true.
-    try {
-        const preset = updated.preset_id ? await Preset.findById(updated.preset_id) : null;
-        await checkDeviceControlTransitions(prevDevice, updated, preset);
-    } catch (err) {
-        console.error('Failed to check transitions:', err);
-    }
-};
-
-const checkDeviceControlTransitions = async (device, updatedDevice, preset) => {
-    if (!device.owner_id) return;
-
-    const NotificationService = require('./notificationService');
-
-    // Check Fan
-    if (didTurnOn(updatedDevice.id, 'fan_status', device.fan_status, updatedDevice.fan_status)) {
-        let reason = 'Độ ẩm cao';
-        if (preset) {
-            if (typeof preset.danger_humidity === 'number' && updatedDevice.current_humidity >= preset.danger_humidity) {
-                reason = 'Độ ẩm nguy hiểm';
-            } else if (typeof preset.max_temp_danger === 'number' && updatedDevice.current_temperature >= preset.max_temp_danger) {
-                reason = 'Nhiệt độ nguy hiểm';
-            } else if (typeof preset.fan_on_humidity === 'number' && updatedDevice.current_humidity > preset.fan_on_humidity) {
-                reason = 'Độ ẩm cao';
-            }
-        }
-        try {
-            await NotificationService.sendControlCommandSent(device.owner_id, device.device_name, 'fan', reason, {
-                deviceId: updatedDevice.id,
-            });
-        } catch (err) {
-            console.error('Failed to send control command notification for fan:', err);
-        }
-    }
-
-    // Check Mist
-    if (didTurnOn(updatedDevice.id, 'mist_status', device.mist_status, updatedDevice.mist_status)) {
-        let reason = 'Độ ẩm thấp';
-        if (preset && typeof preset.mist_on_humidity === 'number' && updatedDevice.current_humidity < preset.mist_on_humidity) {
-            reason = 'Độ ẩm thấp';
-        }
-        try {
-            await NotificationService.sendControlCommandSent(device.owner_id, device.device_name, 'mist', reason, {
-                deviceId: updatedDevice.id,
-            });
-        } catch (err) {
-            console.error('Failed to send control command notification for mist:', err);
-        }
-    }
-
-    // Check Heater
-    if (didTurnOn(updatedDevice.id, 'heater_status', device.heater_status, updatedDevice.heater_status)) {
-        let reason = 'Nhiệt độ thấp';
-        if (preset && typeof preset.heater_on_temp === 'number' && updatedDevice.current_temperature < preset.heater_on_temp) {
-            reason = 'Nhiệt độ thấp';
-        }
-        try {
-            await NotificationService.sendControlCommandSent(device.owner_id, device.device_name, 'heater', reason, {
-                deviceId: updatedDevice.id,
-            });
-        } catch (err) {
-            console.error('Failed to send control command notification for heater:', err);
-        }
-    }
-
-    // Check Light
-    if (didTurnOn(updatedDevice.id, 'light_status', device.light_status, updatedDevice.light_status)) {
-        try {
-            await NotificationService.sendControlCommandSent(device.owner_id, device.device_name, 'light', 'Tự động', {
-                deviceId: updatedDevice.id,
-            });
-        } catch (err) {
-            console.error('Failed to send control command notification for light:', err);
-        }
-    }
-};

@@ -12,7 +12,7 @@ const presetService = {
 
     create: async (data, user) => {
         if (!data.preset_name) throw createHttpError(400, 'preset_name is required');
-        const isRecommended = user && String(user.role || '').toLowerCase() === 'admin' ? true : false;
+        const isRecommended = user && user.role === 'Admin' ? true : false;
         const payload = { ...data, created_by: user ? user.id : null, is_recommended: isRecommended };
         return Preset.create(payload);
     },
@@ -32,7 +32,7 @@ const presetService = {
     applyToDevice: async (deviceId, presetId, user) => {
         const device = await Device.findById(deviceId);
         if (!device) throw createHttpError(404, 'Device not found');
-        if (String(user.role || '').toLowerCase() !== 'admin' && device.owner_id !== user.id) throw createHttpError(403, 'Forbidden');
+        if (user.role !== 'Admin' && device.owner_id !== user.id) throw createHttpError(403, 'Forbidden');
 
         const preset = await Preset.findById(presetId);
         if (!preset) throw createHttpError(404, 'Preset not found');
@@ -54,27 +54,3 @@ const presetService = {
 };
 
 module.exports = presetService;
-
-// --- DECORATORS FOR NOTIFICATIONS (ADDITIVE ONLY) ---
-const originalApplyToDevice = presetService.applyToDevice;
-presetService.applyToDevice = async (deviceId, presetId, user) => {
-    const applied = await originalApplyToDevice(deviceId, presetId, user);
-    if (applied && applied.owner_id) {
-        try {
-            const PresetModel = require('../models/presetModel');
-            const preset = await PresetModel.findById(presetId);
-            if (preset) {
-                const NotificationService = require('./notificationService');
-                NotificationService.sendPresetScheduleNotification('Preset Applied', {
-                    userId: applied.owner_id,
-                    deviceId,
-                    deviceName: applied.device_name,
-                    presetName: preset.preset_name,
-                }).catch(console.error);
-            }
-        } catch (err) {
-            console.error('Failed to send AutoControlActivated notification:', err);
-        }
-    }
-    return applied;
-};

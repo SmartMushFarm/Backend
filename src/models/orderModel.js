@@ -60,7 +60,7 @@ const Order = {
     findAll: async (filters = {}) => {
         const { status } = filters;
         const values = [];
-        const where = status ? (values.push(status), `WHERE LOWER(o.status) = LOWER($1)`) : '';
+        const where = status ? (values.push(status), `WHERE o.status = $1`) : '';
         const result = await pool.query(
             `SELECT o.*, u.name as user_name, u.email as user_email
              FROM orders o
