@@ -1,4 +1,5 @@
 require("dotenv").config({ override: true });
+process.env.TZ = "Asia/Ho_Chi_Minh";
 
 const app = require("./app");
 require("./services/mqttService");
