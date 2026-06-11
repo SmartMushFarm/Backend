@@ -144,7 +144,7 @@ const Device = {
         try {
             await client.query('BEGIN');
 
-            if (mode === 'Manual') {
+            if (String(mode || '').toLowerCase() === 'manual') {
                 // Clear preset_id on device when switching to Manual
                 await client.query(`UPDATE devices SET preset_id = NULL WHERE id = $1`, [id]);
             }
