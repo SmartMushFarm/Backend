@@ -1,5 +1,5 @@
 const Device = require('../models/deviceModel');
-const deviceService = require('./deviceService');
+const mqttService = require('./mqttService');
 const autoControl = require('./autoControlService');
 
 // In-memory job map: deviceId -> { intervalId, currentOffTimeout }
@@ -27,10 +27,11 @@ async function runFanCycle(deviceId, durationMs) {
 
     try {
       autoControl.setPresetFanOverride(device.device_name, true);
+      autoControl.setPresetMistOverride(device.device_name, false);
     } catch (_) {}
 
     try {
-      await deviceService.controlViaMqtt(device.id, { device: 'fan', action: 'on' });
+      await mqttService.publishCommand({ deviceName: device.device_name, device: 'fan', action: 'on' });
       log('fan ON for', device.device_name);
     } catch (e) {
       log('failed to turn fan on for', device.device_name, e.message || e);
@@ -38,16 +39,11 @@ async function runFanCycle(deviceId, durationMs) {
 
     const offTimeout = setTimeout(async () => {
       try {
-        // Set override to OFF BEFORE clearing, so auto-control never sees a gap
-        try { autoControl.setPresetFanOverride(device.device_name, false); } catch (_) {}
+        autoControl.clearPresetFanOverride(device.device_name);
+        autoControl.clearPresetMistOverride(device.device_name);
 
-        const refreshedDevice = await Device.findById(deviceId);
-        if (refreshedDevice) {
-          await deviceService.controlViaMqtt(refreshedDevice.id, { device: 'fan', action: 'off' });
-          log('fan OFF for', refreshedDevice.device_name);
-        } else {
-          log('device gone at OFF time for', device.device_name);
-        }
+        await mqttService.publishCommand({ deviceName: device.device_name, device: 'fan', action: 'off' });
+        log('fan OFF for', device.device_name);
         // Keep override=false until next cycle starts so auto-control doesn't turn fan back on
       } catch (e) {
         log('failed to turn fan off for', device.device_name, e.message || e);
@@ -85,7 +81,10 @@ function stopDevicePresetJob(deviceId) {
   jobMap.delete(deviceId);
   // Also clear any active preset fan override for this device
   if (job._deviceName) {
-    try { autoControl.clearPresetFanOverride(job._deviceName); } catch (_) {}
+    try {
+      autoControl.clearPresetFanOverride(job._deviceName);
+      autoControl.clearPresetMistOverride(job._deviceName);
+    } catch (_) {}
   }
   log('stopped preset job for device', deviceId);
   return true;

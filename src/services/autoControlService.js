@@ -13,6 +13,9 @@ const presetRunningSet = new Set();
 // maps deviceName -> { desiredFan: boolean|null, cycleEndsAt: number|null }
 // null means no preset cycle active; true=preset wants fan ON, false=preset wants fan OFF
 const presetDesiredFanState = new Map();
+// maps deviceName -> { desiredMist: boolean|null, cycleEndsAt: number|null }
+// null means no preset cycle active; true=preset wants mist ON, false=preset wants mist OFF
+const presetDesiredMistState = new Map();
 
 const log = (...args) => console.log(...args);
 
@@ -129,6 +132,17 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
             return;
         }
 
+        // Mist override: if preset cycle is controlling mist, obey it
+        const presetMistOverride = presetDesiredMistState.get(deviceName);
+        if (presetMistOverride !== undefined && presetMistOverride !== null) {
+            if (presetMistOverride === true) {
+                await sendCommandIfNeeded(device, 'mist', 'on', curMist, 'preset cycle: mist ON');
+            } else {
+                await sendCommandIfNeeded(device, 'mist', 'off', curMist, 'preset cycle: mist OFF');
+            }
+            return;
+        }
+
         // Fan rule: check if preset cycle is overriding fan state first
         const presetFanOverride = presetDesiredFanState.get(deviceName);
         if (presetFanOverride !== undefined && presetFanOverride !== null) {
@@ -213,10 +227,26 @@ function clearPresetFanOverride(deviceName) {
     presetDesiredFanState.delete(deviceName);
 }
 
+function setPresetMistOverride(deviceName, desiredMist) {
+    if (!deviceName) return;
+    if (desiredMist === null || desiredMist === undefined) {
+        presetDesiredMistState.delete(deviceName);
+    } else {
+        presetDesiredMistState.set(deviceName, desiredMist);
+    }
+}
+
+function clearPresetMistOverride(deviceName) {
+    if (!deviceName) return;
+    presetDesiredMistState.delete(deviceName);
+}
+
 module.exports = {
     handleAutoControl,
     markPresetRunning,
     unmarkPresetRunning,
     setPresetFanOverride,
     clearPresetFanOverride,
+    setPresetMistOverride,
+    clearPresetMistOverride,
 };
