@@ -131,19 +131,21 @@ async function handleAutoControl({ device, preset, temperature, humidity }) {
 
         // Fan rule: check if preset cycle is overriding fan state first
         const presetFanOverride = presetDesiredFanState.get(deviceName);
-        if (presetFanOverride === true) {
-            // preset cycle wants fan ON — don't let auto rules turn it off
-            await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'preset cycle: fan ON');
-        } else if (presetFanOverride === false) {
-            // preset cycle wants fan OFF — don't let auto rules turn it on
-            await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'preset cycle: fan OFF');
-        } else {
-            // no preset override active — apply normal fan rule
-            if (typeof preset.fan_on_humidity === 'number' && humidity > Number(preset.fan_on_humidity)) {
-                await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'humidity above fan_on_humidity');
-            } else if (typeof preset.fan_off_humidity === 'number' && humidity <= Number(preset.fan_off_humidity)) {
-                await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'humidity below/equal fan_off_humidity');
+        if (presetFanOverride !== undefined && presetFanOverride !== null) {
+            // preset cycle is active — enforce its desired state and skip humidity rules
+            if (presetFanOverride === true) {
+                await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'preset cycle: fan ON');
+            } else {
+                await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'preset cycle: fan OFF');
             }
+            return;
+        }
+
+        // no preset override active — apply normal fan rule
+        if (typeof preset.fan_on_humidity === 'number' && humidity > Number(preset.fan_on_humidity)) {
+            await sendCommandIfNeeded(device, 'fan', 'on', curFan, 'humidity above fan_on_humidity');
+        } else if (typeof preset.fan_off_humidity === 'number' && humidity <= Number(preset.fan_off_humidity)) {
+            await sendCommandIfNeeded(device, 'fan', 'off', curFan, 'humidity below/equal fan_off_humidity');
         }
 
         // Mist and Heater interaction

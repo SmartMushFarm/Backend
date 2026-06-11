@@ -7,7 +7,7 @@ const jobMap = new Map();
 
 // Default: run every 30 minutes for 3 minutes
 const DEFAULT_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const DEFAULT_DURATION_MS = 3 * 60 * 1000; // 3 minutes
+const DEFAULT_DURATION_MS = 2 * 60 * 1000; // 2 minutes
 
 const log = (...args) => console.log('[PRESET-SCHED]', ...args);
 
