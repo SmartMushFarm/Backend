@@ -241,6 +241,13 @@ function clearPresetMistOverride(deviceName) {
     presetDesiredMistState.delete(deviceName);
 }
 
+function clearAllOverrides(deviceName) {
+    if (!deviceName) return;
+    presetDesiredFanState.delete(deviceName);
+    presetDesiredMistState.delete(deviceName);
+    mistPulseMap.delete(deviceName);
+}
+
 module.exports = {
     handleAutoControl,
     markPresetRunning,
@@ -249,4 +256,5 @@ module.exports = {
     clearPresetFanOverride,
     setPresetMistOverride,
     clearPresetMistOverride,
+    clearAllOverrides,
 };

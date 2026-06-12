@@ -248,10 +248,13 @@ const deviceService = {
         if (!mode || (mode !== 'Auto' && mode !== 'Manual')) throw createHttpError(400, "mode must be 'Auto' or 'Manual'");
         const updated = await Device.updateMode(id, mode);
         // If switched to Manual, stop any preset scheduler job for this device
+        // and clear all override states so fan/mist don't get stuck
         try {
             if (mode === 'Manual') {
                 const presetScheduler = require('./presetSchedulerService');
                 presetScheduler.stopDevicePresetJob(id);
+                const autoControl = require('./autoControlService');
+                autoControl.clearAllOverrides(targetDevice.device_name);
             }
         } catch (e) {
             console.error('Failed to stop preset scheduler on mode change:', e.message || e);
