@@ -12,7 +12,7 @@ create table users (
   email text unique not null,
   password text not null,
   role text default 'Customer'
-    check (role in ('Customer', 'Admin')),
+    check (role in ('Customer', 'Admin', 'Technician')),
   status text default 'Active'
     check (status in ('Active', 'Inactive')),
   phone text,
@@ -187,7 +187,7 @@ create table maintenance_requests (
   description text not null,
 
   status text default 'Pending'
-    check (status in ('Pending', 'Received', 'Processing', 'Completed', 'Cancelled')),
+    check (status in ('Pending', 'Received', 'Processing', 'WaitingConfirmation', 'Completed', 'Cancelled')),
 
   priority text default 'Normal'
     check (priority in ('Low', 'Normal', 'High', 'Urgent')),

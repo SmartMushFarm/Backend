@@ -5,18 +5,18 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 /**
- * @openapi
+ * OpenAPI disabled: repair bill routes are not mounted yet.
  * tags:
- *   - name: RepairBills
- *     description: Repair bill APIs
+ *   - name: Maintenance
+ *     description: Maintenance request APIs
  */
 
 /**
- * @openapi
+ * OpenAPI disabled: repair bill routes are not mounted yet.
  * /api/repair-bills/my-bills:
  *   get:
- *     tags: [RepairBills]
- *     summary: Get current user's repair bills
+ *     tags: [Maintenance]
+ *     summary: Repair bill - Get current user's repair bills
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200:
@@ -25,11 +25,11 @@ const router = express.Router();
 router.get('/my-bills', authMiddleware, repairBillController.getMyBills);
 
 /**
- * @openapi
+ * OpenAPI disabled: repair bill routes are not mounted yet.
  * /api/repair-bills/{id}:
  *   get:
- *     tags: [RepairBills]
- *     summary: Get repair bill by id
+ *     tags: [Maintenance]
+ *     summary: Repair bill - Get repair bill by id
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
@@ -43,11 +43,11 @@ router.get('/my-bills', authMiddleware, repairBillController.getMyBills);
 router.get('/:id', authMiddleware, repairBillController.getBillById);
 
 /**
- * @openapi
+ * OpenAPI disabled: repair bill routes are not mounted yet.
  * /api/repair-bills/{id}/pay:
  *   put:
- *     tags: [RepairBills]
- *     summary: Pay a repair bill
+ *     tags: [Maintenance]
+ *     summary: Repair bill - Pay a repair bill
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
