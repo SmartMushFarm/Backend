@@ -24,7 +24,7 @@ const maintenanceService = {
         if (!device_id || !title || !description) throw createHttpError(400, 'device_id, title and description are required');
         const device = await Device.findById(device_id);
         if (!device) throw createHttpError(404, 'Device not found');
-        if (device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
+        if (String(device.owner_id) !== String(userId)) throw createHttpError(403, 'Forbidden');
 
         const req = await Maintenance.create({ userId, deviceId: device_id, title, description, priority });
         await notifyAdmins('New Maintenance Request', `User submitted: ${title}`);
@@ -36,7 +36,7 @@ const maintenanceService = {
     getRequestById: async (id, user) => {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Maintenance request not found');
-        if (user.role === 'Customer' && req.user_id !== user.id) throw createHttpError(403, 'Forbidden');
+        if (user.role === 'Customer' && String(req.user_id) !== String(user.id)) throw createHttpError(403, 'Forbidden');
         return req;
     },
 
@@ -46,8 +46,22 @@ const maintenanceService = {
     getTaskById: async (id, userId) => {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Not found');
-        if (req.assigned_admin_id !== userId) throw createHttpError(403, 'Forbidden');
+        if (String(req.assigned_admin_id) !== String(userId)) throw createHttpError(403, 'Forbidden');
         return req;
+    },
+
+    requestCompletion: async (id, userId, { technician_note } = {}) => {
+        const req = await Maintenance.findById(id);
+        if (!req) throw createHttpError(404, 'Not found');
+        if (String(req.assigned_admin_id) !== String(userId)) throw createHttpError(403, 'Forbidden');
+        if (req.status !== 'Processing') throw createHttpError(400, 'Only Processing requests can be submitted for admin confirmation');
+
+        const note = technician_note
+            ? `Technician completed: ${technician_note}`
+            : 'Technician completed the maintenance and is waiting for admin confirmation.';
+        const updated = await Maintenance.updateStatus(id, 'WaitingConfirmation', { adminNote: note });
+        await notifyAdmins('Maintenance Waiting Confirmation', `Technician completed request #${req.id}: ${req.title}`);
+        return updated;
     },
 
     // Admin
@@ -62,11 +76,11 @@ const maintenanceService = {
         return updated;
     },
 
-    schedule: async (id, adminId, { scheduled_date, admin_note }) => {
+    schedule: async (id, adminId, { scheduled_date, admin_note, technician_id }) => {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Not found');
         if (req.status !== 'Received') throw createHttpError(400, 'Only Received requests can be scheduled');
-        return Maintenance.updateStatus(id, 'Processing', { assignedAdminId: adminId, scheduledDate: scheduled_date, adminNote: admin_note });
+        return Maintenance.updateStatus(id, 'Processing', { assignedAdminId: technician_id || adminId, scheduledDate: scheduled_date, adminNote: admin_note });
     },
 
     cancel: async (id, { admin_note }) => {
@@ -80,7 +94,7 @@ const maintenanceService = {
     confirmCompleted: async (id) => {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Not found');
-        if (req.status !== 'Processing') throw createHttpError(400, 'Only Processing requests can be completed');
+        if (req.status !== 'WaitingConfirmation') throw createHttpError(400, 'Only WaitingConfirmation requests can be completed');
         const now = new Date().toISOString();
         const updated = await Maintenance.updateStatus(id, 'Completed', { completedAt: now });
         await Notification.create({ userId: req.user_id, title: 'Maintenance Completed', message: `Your request "${req.title}" has been completed.`, type: 'Maintenance' });

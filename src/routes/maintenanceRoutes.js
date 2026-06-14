@@ -17,7 +17,7 @@ const router = express.Router();
  * /api/maintenance-requests:
  *   post:
  *     tags: [Maintenance]
- *     summary: Create a maintenance request
+ *     summary: Customer - Create a maintenance request
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       required: true
@@ -25,6 +25,33 @@ const router = express.Router();
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - device_id
+ *               - title
+ *               - description
+ *             properties:
+ *               device_id:
+ *                 type: integer
+ *                 description: ID of the customer's device that needs maintenance.
+ *                 example: 1
+ *               title:
+ *                 type: string
+ *                 description: Short maintenance issue title.
+ *                 example: May phun suong bi loi
+ *               description:
+ *                 type: string
+ *                 description: Detailed description of the issue.
+ *                 example: Thiet bi khong phun suong, do am trong trai nam bi giam.
+ *               priority:
+ *                 type: string
+ *                 enum: [Low, Normal, High, Urgent]
+ *                 description: Request priority. Defaults to Normal when omitted.
+ *                 example: High
+ *           example:
+ *             device_id: 1
+ *             title: May phun suong bi loi
+ *             description: Thiet bi khong phun suong, do am trong trai nam bi giam.
+ *             priority: High
  *     responses:
  *       201:
  *         description: Request created
@@ -36,7 +63,7 @@ router.post('/', authMiddleware, ctrl.createRequest);
  * /api/maintenance-requests/my-requests:
  *   get:
  *     tags: [Maintenance]
- *     summary: Get current user's maintenance requests
+ *     summary: Customer - Get current user's maintenance requests
  *     security: [{ bearerAuth: [] }]
  *     responses:
  *       200:
@@ -49,7 +76,7 @@ router.get('/my-requests', authMiddleware, ctrl.getMyRequests);
  * /api/maintenance-requests/{id}:
  *   get:
  *     tags: [Maintenance]
- *     summary: Get maintenance request by id
+ *     summary: Customer/Admin - Get maintenance request by id
  *     security: [{ bearerAuth: [] }]
  *     parameters:
  *       - in: path
