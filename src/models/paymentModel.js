@@ -27,6 +27,24 @@ const Payment = {
         );
         return result.rows[0] || null;
     },
+
+    // PayOS v2: mark paid idempotent — chỉ update nếu chưa Paid
+    markPaid: async (id, { payosReference } = {}) => {
+        const result = await pool.query(
+            `UPDATE payments SET payment_status = 'Paid', paid_at = NOW(), qr_code = COALESCE($2, qr_code)
+             WHERE id = $1 AND payment_status != 'Paid' RETURNING *`,
+            [id, payosReference || null]
+        );
+        return result.rows[0] || null;
+    },
+
+    updateFailed: async (id) => {
+        const result = await pool.query(
+            `UPDATE payments SET payment_status = 'Failed' WHERE id = $1 AND payment_status = 'Pending' RETURNING *`,
+            [id]
+        );
+        return result.rows[0] || null;
+    },
 };
 
 module.exports = Payment;
