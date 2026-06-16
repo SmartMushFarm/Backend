@@ -189,7 +189,7 @@ create table maintenance_requests (
   status text default 'Pending'
     check (status in ('Pending', 'Received', 'Processing', 'WaitingConfirmation', 'Completed', 'Cancelled')),
 
-  priority text default 'Normal'
+  priority text
     check (priority in ('Low', 'Normal', 'High', 'Urgent')),
 
   assigned_admin_id bigint references users(id) on delete set null,

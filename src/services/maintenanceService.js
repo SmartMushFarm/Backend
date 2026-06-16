@@ -8,6 +8,16 @@ const createHttpError = (status, message) => {
     return error;
 };
 
+const allowedPriorities = ['Low', 'Normal', 'High', 'Urgent'];
+
+const normalizePriority = (priority) => {
+    if (priority === undefined || priority === null || priority === '') return null;
+    if (!allowedPriorities.includes(priority)) {
+        throw createHttpError(400, `priority must be one of: ${allowedPriorities.join(', ')}`);
+    }
+    return priority;
+};
+
 const notifyAdmins = async (title, message) => {
     try {
         const { pool } = require('../config/db');
@@ -20,13 +30,13 @@ const notifyAdmins = async (title, message) => {
 
 const maintenanceService = {
     // Customer
-    createRequest: async (userId, { device_id, title, description, priority }) => {
+    createRequest: async (userId, { device_id, title, description }) => {
         if (!device_id || !title || !description) throw createHttpError(400, 'device_id, title and description are required');
         const device = await Device.findById(device_id);
         if (!device) throw createHttpError(404, 'Device not found');
         if (String(device.owner_id) !== String(userId)) throw createHttpError(403, 'Forbidden');
 
-        const req = await Maintenance.create({ userId, deviceId: device_id, title, description, priority });
+        const req = await Maintenance.create({ userId, deviceId: device_id, title, description });
         await notifyAdmins('New Maintenance Request', `User submitted: ${title}`);
         return req;
     },
@@ -38,6 +48,17 @@ const maintenanceService = {
         if (!req) throw createHttpError(404, 'Maintenance request not found');
         if (user.role === 'Customer' && String(req.user_id) !== String(user.id)) throw createHttpError(403, 'Forbidden');
         return req;
+    },
+
+    cancelMyRequest: async (id, userId) => {
+        const req = await Maintenance.findById(id);
+        if (!req) throw createHttpError(404, 'Maintenance request not found');
+        if (String(req.user_id) !== String(userId)) throw createHttpError(403, 'Forbidden');
+        if (req.status !== 'Pending') throw createHttpError(400, 'Only Pending maintenance requests can be cancelled by customer');
+
+        const updated = await Maintenance.updateStatus(id, 'Cancelled');
+        await notifyAdmins('Maintenance Request Cancelled', `User cancelled request #${req.id}: ${req.title}`);
+        return updated;
     },
 
     // Technician
@@ -76,11 +97,16 @@ const maintenanceService = {
         return updated;
     },
 
-    schedule: async (id, adminId, { scheduled_date, admin_note, technician_id }) => {
+    schedule: async (id, adminId, { scheduled_date, admin_note, technician_id, priority }) => {
         const req = await Maintenance.findById(id);
         if (!req) throw createHttpError(404, 'Not found');
         if (req.status !== 'Received') throw createHttpError(400, 'Only Received requests can be scheduled');
-        return Maintenance.updateStatus(id, 'Processing', { assignedAdminId: technician_id || adminId, scheduledDate: scheduled_date, adminNote: admin_note });
+        return Maintenance.updateStatus(id, 'Processing', {
+            assignedAdminId: technician_id || adminId,
+            scheduledDate: scheduled_date,
+            adminNote: admin_note,
+            priority: normalizePriority(priority),
+        });
     },
 
     cancel: async (id, { admin_note }) => {

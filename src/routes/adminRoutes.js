@@ -90,10 +90,16 @@ router.put('/maintenance-requests/:id/approve', maintenanceController.approve);
  *                 type: integer
  *                 description: User ID of the technician assigned to this maintenance request. Defaults to current admin when omitted.
  *                 example: 3
+ *               priority:
+ *                 type: string
+ *                 enum: [Low, Normal, High, Urgent]
+ *                 description: Admin-assessed priority shown to the technician.
+ *                 example: High
  *           example:
  *             scheduled_date: "2026-06-15T09:00:00+07:00"
  *             admin_note: Hen ky thuat kiem tra vao sang mai.
  *             technician_id: 3
+ *             priority: High
  *     responses:
  *       200:
  *         description: Request scheduled

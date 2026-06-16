@@ -35,6 +35,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
                 const rank = [
                     { path: '/api/maintenance-requests', method: 'post' },
                     { path: '/api/maintenance-requests/my-requests', method: 'get' },
+                    { path: '/api/maintenance-requests/{id}/cancel', method: 'put' },
                     { path: '/api/maintenance-requests/{id}', method: 'get' },
                     { path: '/api/admin/maintenance-requests', method: 'get' },
                     { path: '/api/admin/maintenance-requests/{id}/approve', method: 'put' },
