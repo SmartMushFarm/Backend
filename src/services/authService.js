@@ -17,6 +17,17 @@ const createHttpError = (status, message) => {
     return error;
 };
 
+const allowedRoles = ['Customer', 'Admin', 'Technician'];
+
+const normalizeRole = (role) => {
+    const value = String(role || '').trim().toLowerCase();
+    const normalized = allowedRoles.find(item => item.toLowerCase() === value);
+    if (!normalized) {
+        throw createHttpError(400, `role must be one of: ${allowedRoles.join(', ')}`);
+    }
+    return normalized;
+};
+
 const normalizeUserProfileInput = (payload, existingUser) => {
     const data = {};
 
@@ -125,6 +136,10 @@ const authService = {
 
     getUsers: async () => {
         return User.findAll();
+    },
+
+    getUsersByRole: async (role) => {
+        return User.findAllByRole(normalizeRole(role));
     },
 
     updateUserStatus: async (id, status) => {

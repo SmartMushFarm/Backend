@@ -84,6 +84,15 @@ const authController = {
         }
     },
 
+    getUsersByRole: async (req, res) => {
+        try {
+            const users = await authService.getUsersByRole(req.params.role);
+            return res.status(200).json({ success: true, data: users });
+        } catch (error) {
+            return sendError(res, error);
+        }
+    },
+
     updateUser: async (req, res) => {
         try {
             const { id } = req.params;
