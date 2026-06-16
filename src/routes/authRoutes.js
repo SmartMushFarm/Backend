@@ -241,6 +241,31 @@ router.get('/users', authMiddleware, roleMiddleware('Admin'), authController.get
 
 /**
  * @openapi
+ * /api/auth/users/role/{role}:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Admin - Get all users by role
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: role
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [Customer, Admin, Technician]
+ *         example: Technician
+ *     responses:
+ *       200:
+ *         description: List of users with the selected role
+ *       400:
+ *         description: Invalid role
+ *       403:
+ *         description: Admin only
+ */
+router.get('/users/role/:role', authMiddleware, roleMiddleware('Admin'), authController.getUsersByRole);
+
+/**
+ * @openapi
  * /api/auth/users/{id}:
  *   put:
  *     tags: [Auth]
