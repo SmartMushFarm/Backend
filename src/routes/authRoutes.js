@@ -318,4 +318,194 @@ router.put('/users/:id', authMiddleware, roleMiddleware('Admin'), authController
  */
 router.put('/users/:id/status', authMiddleware, roleMiddleware('Admin'), authController.updateUserStatus);
 
+/**
+ * @openapi
+ * /api/auth/register-otp:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Register new user with OTP verification
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Nguyen Van A
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: vana@gmail.com
+ *               password:
+ *                 type: string
+ *                 example: "123456"
+ *               phone:
+ *                 type: string
+ *                 example: "0123456789"
+ *               address:
+ *                 type: string
+ *                 example: Ho Chi Minh
+ *     responses:
+ *       200:
+ *         description: OTP sent to email successfully
+ *       400:
+ *         description: Invalid input
+ *       409:
+ *         description: Email already registered
+ */
+router.post('/register-otp', authController.registerWithOTP);
+
+/**
+ * @openapi
+ * /api/auth/verify-registration-otp:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Verify OTP for registration
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: vana@gmail.com
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Email verified successfully
+ *       400:
+ *         description: Invalid or expired OTP
+ *       404:
+ *         description: Email not found
+ */
+router.post('/verify-registration-otp', authController.verifyRegistrationOTP);
+
+/**
+ * @openapi
+ * /api/auth/forgot-password:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Request password reset - sends OTP to email
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: vana@gmail.com
+ *     responses:
+ *       200:
+ *         description: OTP sent to email successfully
+ *       400:
+ *         description: Invalid input
+ */
+router.post('/forgot-password', authController.requestPasswordReset);
+
+/**
+ * @openapi
+ * /api/auth/reset-password-otp:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Reset password using OTP verification
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - otp
+ *               - new_password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: vana@gmail.com
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *               new_password:
+ *                 type: string
+ *                 example: "newpassword123"
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Invalid or expired OTP, or weak password
+ *       404:
+ *         description: Email not found
+ */
+router.post('/reset-password-otp', authController.resetPasswordWithOTP);
+
+/**
+ * @openapi
+ * /api/auth/request-change-password-otp:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Request OTP to change password (for logged-in users)
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200:
+ *         description: OTP sent to email successfully
+ */
+router.post('/request-change-password-otp', authMiddleware, authController.requestChangePasswordOTP);
+
+/**
+ * @openapi
+ * /api/auth/change-password-otp:
+ *   put:
+ *     tags:
+ *       - Auth
+ *     summary: Change password using OTP verification (for logged-in users)
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - otp
+ *               - new_password
+ *             properties:
+ *               otp:
+ *                 type: string
+ *                 example: "123456"
+ *               new_password:
+ *                 type: string
+ *                 example: "newpassword123"
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Invalid or expired OTP, or weak password
+ */
+router.put('/change-password-otp', authMiddleware, authController.changePasswordWithOTP);
+
 module.exports = router;

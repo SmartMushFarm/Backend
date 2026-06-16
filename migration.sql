@@ -17,6 +17,11 @@ create table users (
     check (status in ('Active', 'Inactive')),
   phone text,
   address text,
+  -- OTP fields for registration and password recovery
+  otp_code varchar(6),
+  otp_expires_at timestamptz,
+  otp_type text check (otp_type in ('registration', 'forgot_password', 'change_password')),
+  is_email_verified boolean default false,
   created_at timestamptz default now()
 );
 
@@ -228,4 +233,4 @@ on maintenance_requests(user_id);
 
 create index idx_maintenance_status
 on maintenance_requests(status);
- 
+

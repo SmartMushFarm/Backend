@@ -24,6 +24,105 @@ const authController = {
         }
     },
 
+    // OTP-based registration
+    registerWithOTP: async (req, res) => {
+        try {
+            const result = await authService.registerWithOTP(req.body);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                email: result.email,
+                email_delivery: result.email_delivery,
+            });
+        } catch (error) {
+            console.error('Error in OTP registration:', error);
+            return sendError(res, error);
+        }
+    },
+
+    // Verify OTP for registration
+    verifyRegistrationOTP: async (req, res) => {
+        try {
+            const result = await authService.verifyRegistrationOTP(req.body);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                user: result.user,
+            });
+        } catch (error) {
+            console.error('Error verifying OTP:', error);
+            return sendError(res, error);
+        }
+    },
+
+    // Request password reset with OTP
+    requestPasswordReset: async (req, res) => {
+        try {
+            const result = await authService.requestPasswordReset(req.body);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                email: result.email,
+                email_delivery: result.email_delivery,
+            });
+        } catch (error) {
+            console.error('Error requesting password reset:', error);
+            return sendError(res, error);
+        }
+    },
+
+    // Reset password with OTP verification
+    resetPasswordWithOTP: async (req, res) => {
+        try {
+            const result = await authService.resetPasswordWithOTP(req.body);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                user: result.user,
+            });
+        } catch (error) {
+            console.error('Error resetting password:', error);
+            return sendError(res, error);
+        }
+    },
+
+    // Request change password OTP
+    requestChangePasswordOTP: async (req, res) => {
+        try {
+            const result = await authService.requestChangePasswordOTP(req.user.id);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                email: result.email,
+                email_delivery: result.email_delivery,
+            });
+        } catch (error) {
+            console.error('Error requesting change password OTP:', error);
+            return sendError(res, error);
+        }
+    },
+
+    // Change password with OTP verification
+    changePasswordWithOTP: async (req, res) => {
+        try {
+            const result = await authService.changePasswordWithOTP(req.user.id, req.body);
+
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                user: result.user,
+            });
+        } catch (error) {
+            console.error('Error changing password:', error);
+            return sendError(res, error);
+        }
+    },
+
     login: async (req, res) => {
         try {
             const result = await authService.login(req.body);

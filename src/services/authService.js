@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
+const otpService = require('./otpService');
+const emailService = require('./emailService');
 
 const toPublicUser = (user) => {
     if (!user) {
@@ -54,6 +56,17 @@ const normalizeUserProfileInput = (payload, existingUser) => {
     return data;
 };
 
+const verifyUserOTP = (user, otp, expectedType) => {
+    if (!user.otp_code || !user.otp_expires_at || user.otp_type !== expectedType) {
+        throw createHttpError(400, 'Invalid or expired OTP');
+    }
+
+    const otpVerification = otpService.verifyOTP(otp, user.otp_code, user.otp_expires_at);
+    if (!otpVerification.valid) {
+        throw createHttpError(400, otpVerification.message);
+    }
+};
+
 const authService = {
     register: async (payload) => {
         const name = (payload.name || payload.full_name || '').trim();
@@ -101,6 +114,10 @@ const authService = {
 
         if (user.status !== 'Active') {
             throw createHttpError(403, 'User account is not active');
+        }
+
+        if (user.is_email_verified === false && user.otp_type === 'registration') {
+            throw createHttpError(403, 'Please verify your email before logging in');
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -195,6 +212,239 @@ const authService = {
 
     getAllUsers: async () => {
         return User.findAll();
+    },
+
+    // ============ OTP-BASED REGISTRATION ============
+    registerWithOTP: async (payload) => {
+        const name = (payload.name || payload.full_name || '').trim();
+        const email = (payload.email || '').trim().toLowerCase();
+        const password = payload.password || '';
+        const phone = (payload.phone || payload.phone_number || '').trim();
+        const address = (payload.address || '').trim();
+
+        if (!name || !email || !password) {
+            throw createHttpError(400, 'name, email and password are required');
+        }
+
+        const existingUser = await User.findByEmailWithOTP(email);
+        if (existingUser && existingUser.is_email_verified) {
+            throw createHttpError(409, 'Email already registered');
+        }
+
+        // Generate OTP for registration
+        const otpData = otpService.generateOTPData('registration');
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // If user exists but not verified, update them
+        if (existingUser && !existingUser.is_email_verified) {
+            const updatedUser = await User.saveOTP(email, otpData);
+            // Also update password in temp user
+            await User.updatePassword(existingUser.id, hashedPassword);
+        } else {
+            // Create new user with OTP
+            const userData = {
+                name,
+                email,
+                password: hashedPassword,
+                phone,
+                address,
+                role: 'user',
+                status: 'Active',
+                is_email_verified: false,
+            };
+            await User.create(userData);
+            await User.saveOTP(email, otpData);
+        }
+
+        // Send OTP via email
+        let emailDelivery;
+        try {
+            emailDelivery = await emailService.sendRegistrationOTP(email, otpData.otp_code);
+        } catch (error) {
+            console.error('Error sending OTP email:', error);
+            throw createHttpError(500, 'Failed to send OTP email');
+        }
+
+        return {
+            message: 'OTP has been sent to your email',
+            email: email,
+            email_delivery: {
+                message_id: emailDelivery.messageId,
+                accepted: emailDelivery.accepted || [],
+                rejected: emailDelivery.rejected || [],
+                response: emailDelivery.response,
+            },
+        };
+    },
+
+    // Verify OTP for registration
+    verifyRegistrationOTP: async (payload) => {
+        const email = (payload.email || '').trim().toLowerCase();
+        const otp = (payload.otp || '').trim();
+
+        if (!email || !otp) {
+            throw createHttpError(400, 'email and otp are required');
+        }
+
+        const user = await User.findByEmailWithOTP(email);
+        if (!user) {
+            throw createHttpError(404, 'Email not found');
+        }
+
+        verifyUserOTP(user, otp, 'registration');
+
+        // Clear OTP and mark email as verified
+        const verifiedUser = await User.verifyOTPAndClear(email, 'registration');
+        if (!verifiedUser) {
+            throw createHttpError(400, 'Invalid or expired OTP');
+        }
+
+        return {
+            message: 'Email verified successfully. You can now login.',
+            user: toPublicUser(verifiedUser),
+        };
+    },
+
+    // ============ OTP-BASED PASSWORD RESET ============
+    requestPasswordReset: async (payload) => {
+        const email = (payload.email || '').trim().toLowerCase();
+
+        if (!email) {
+            throw createHttpError(400, 'email is required');
+        }
+
+        const user = await User.findByEmail(email);
+        if (!user) {
+            // For security, don't reveal if email exists
+            return {
+                message: 'If email exists, OTP has been sent',
+            };
+        }
+
+        // Generate OTP for password reset
+        const otpData = otpService.generateOTPData('forgot_password');
+        await User.saveOTP(email, otpData);
+
+        // Send OTP via email
+        let emailDelivery;
+        try {
+            emailDelivery = await emailService.sendForgotPasswordOTP(email, otpData.otp_code);
+        } catch (error) {
+            console.error('Error sending OTP email:', error);
+            throw createHttpError(500, 'Failed to send OTP email');
+        }
+
+        return {
+            message: 'OTP has been sent to your email',
+            email: email,
+            email_delivery: {
+                message_id: emailDelivery.messageId,
+                accepted: emailDelivery.accepted || [],
+                rejected: emailDelivery.rejected || [],
+                response: emailDelivery.response,
+            },
+        };
+    },
+
+    // Verify OTP and reset password
+    resetPasswordWithOTP: async (payload) => {
+        const email = (payload.email || '').trim().toLowerCase();
+        const otp = (payload.otp || '').trim();
+        const newPassword = payload.new_password || '';
+
+        if (!email || !otp || !newPassword) {
+            throw createHttpError(400, 'email, otp and new_password are required');
+        }
+
+        if (newPassword.length < 6) {
+            throw createHttpError(400, 'new_password must be at least 6 characters');
+        }
+
+        const user = await User.findByEmailWithOTP(email);
+        if (!user) {
+            throw createHttpError(404, 'Email not found');
+        }
+
+        verifyUserOTP(user, otp, 'forgot_password');
+
+        // Hash new password and update
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updatedUser = await User.updatePasswordAndClearOTP(email, hashedPassword, 'forgot_password');
+        if (!updatedUser) {
+            throw createHttpError(400, 'Invalid or expired OTP');
+        }
+
+        return {
+            message: 'Password reset successfully. You can now login with your new password.',
+            user: toPublicUser(updatedUser),
+        };
+    },
+
+    // ============ OTP-BASED CHANGE PASSWORD ============
+    requestChangePasswordOTP: async (userId) => {
+        const user = await User.findById(userId);
+        if (!user) {
+            throw createHttpError(404, 'User not found');
+        }
+
+        // Generate OTP for password change
+        const otpData = otpService.generateOTPData('change_password');
+        await User.saveOTP(user.email, otpData);
+
+        // Send OTP via email
+        let emailDelivery;
+        try {
+            emailDelivery = await emailService.sendChangePasswordOTP(user.email, otpData.otp_code);
+        } catch (error) {
+            console.error('Error sending OTP email:', error);
+            throw createHttpError(500, 'Failed to send OTP email');
+        }
+
+        return {
+            message: 'OTP has been sent to your email',
+            email: user.email,
+            email_delivery: {
+                message_id: emailDelivery.messageId,
+                accepted: emailDelivery.accepted || [],
+                rejected: emailDelivery.rejected || [],
+                response: emailDelivery.response,
+            },
+        };
+    },
+
+    // Change password with OTP verification
+    changePasswordWithOTP: async (userId, payload) => {
+        const otp = (payload.otp || '').trim();
+        const newPassword = payload.new_password || '';
+
+        if (!otp || !newPassword) {
+            throw createHttpError(400, 'otp and new_password are required');
+        }
+
+        if (newPassword.length < 6) {
+            throw createHttpError(400, 'new_password must be at least 6 characters');
+        }
+
+        const user = await User.findByIdWithPassword(userId);
+        if (!user) {
+            throw createHttpError(404, 'User not found');
+        }
+
+        verifyUserOTP(user, otp, 'change_password');
+
+        // Hash new password and update
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const updatedUser = await User.updatePasswordAndClearOTP(user.email, hashedPassword, 'change_password');
+        if (!updatedUser) {
+            throw createHttpError(400, 'Invalid or expired OTP');
+        }
+
+        return {
+            message: 'Password changed successfully.',
+            user: toPublicUser(updatedUser),
+        };
     },
 };
 
