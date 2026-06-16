@@ -15,6 +15,10 @@ const maintenanceController = {
         try { return res.json({ success: true, data: await maintenanceService.getRequestById(req.params.id, req.user) }); }
         catch (e) { return sendError(res, e); }
     },
+    cancelMyRequest: async (req, res) => {
+        try { return res.json({ success: true, data: await maintenanceService.cancelMyRequest(req.params.id, req.user.id) }); }
+        catch (e) { return sendError(res, e); }
+    },
 
     // Technician
     getMyTasks: async (req, res) => {

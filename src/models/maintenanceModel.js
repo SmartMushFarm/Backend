@@ -1,11 +1,11 @@
 const { pool } = require('../config/db');
 
 const Maintenance = {
-    create: async ({ userId, deviceId, title, description, priority }) => {
+    create: async ({ userId, deviceId, title, description, priority = null }) => {
         const result = await pool.query(
             `INSERT INTO maintenance_requests (user_id, device_id, title, description, priority)
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-            [userId, deviceId, title, description || null, priority || 'Normal']
+            [userId, deviceId, title, description || null, priority]
         );
         return result.rows[0];
     },
@@ -67,16 +67,17 @@ const Maintenance = {
     },
 
     updateStatus: async (id, status, extra = {}) => {
-        const { assignedAdminId, scheduledDate, adminNote, completedAt } = extra;
+        const { assignedAdminId, scheduledDate, adminNote, completedAt, priority } = extra;
         const result = await pool.query(
             `UPDATE maintenance_requests SET
                 status = $1,
                 assigned_admin_id = COALESCE($2, assigned_admin_id),
                 scheduled_date = COALESCE($3, scheduled_date),
                 admin_note = COALESCE($4, admin_note),
-                completed_at = COALESCE($5, completed_at)
-             WHERE id = $6 RETURNING *`,
-            [status, assignedAdminId || null, scheduledDate || null, adminNote || null, completedAt || null, id]
+                completed_at = COALESCE($5, completed_at),
+                priority = COALESCE($6, priority)
+             WHERE id = $7 RETURNING *`,
+            [status, assignedAdminId || null, scheduledDate || null, adminNote || null, completedAt || null, priority || null, id]
         );
         return result.rows[0] || null;
     },

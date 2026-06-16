@@ -42,16 +42,10 @@ const router = express.Router();
  *                 type: string
  *                 description: Detailed description of the issue.
  *                 example: Thiet bi khong phun suong, do am trong trai nam bi giam.
- *               priority:
- *                 type: string
- *                 enum: [Low, Normal, High, Urgent]
- *                 description: Request priority. Defaults to Normal when omitted.
- *                 example: High
  *           example:
  *             device_id: 1
  *             title: May phun suong bi loi
  *             description: Thiet bi khong phun suong, do am trong trai nam bi giam.
- *             priority: High
  *     responses:
  *       201:
  *         description: Request created
@@ -70,6 +64,32 @@ router.post('/', authMiddleware, ctrl.createRequest);
  *         description: List of requests
  */
 router.get('/my-requests', authMiddleware, ctrl.getMyRequests);
+
+/**
+ * @openapi
+ * /api/maintenance-requests/{id}/cancel:
+ *   put:
+ *     tags: [Maintenance]
+ *     summary: Customer - Cancel a pending maintenance request
+ *     description: Customer can cancel only their own request while it is still Pending. After admin approves it to Received, customer cannot cancel it.
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *         example: 1
+ *     responses:
+ *       200:
+ *         description: Request cancelled
+ *       400:
+ *         description: Only Pending maintenance requests can be cancelled by customer
+ *       403:
+ *         description: Request does not belong to current customer
+ *       404:
+ *         description: Maintenance request not found
+ */
+router.put('/:id/cancel', authMiddleware, ctrl.cancelMyRequest);
 
 /**
  * @openapi
