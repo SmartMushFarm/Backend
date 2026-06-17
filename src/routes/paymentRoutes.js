@@ -106,6 +106,9 @@ router.post('/payos/create', authMiddleware, paymentController.createPayos);
  */
 router.post('/payos/webhook', paymentController.payosWebhook);
 
+// PayOS gọi GET để verify URL tồn tại trước khi xác nhận webhook
+router.get('/payos/webhook', (req, res) => res.status(200).json({ ok: true }));
+
 /**
  * @openapi
  * /api/payments/payos/confirm-webhook:
