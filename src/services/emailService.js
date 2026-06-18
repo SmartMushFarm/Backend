@@ -8,21 +8,54 @@ dns.setDefaultResultOrder('ipv4first');
 const smtpPort = Number(process.env.SMTP_PORT || 587);
 const smtpPassword = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
 
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: smtpPort,
-    secure: smtpPort === 465,
-    family: 4,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: smtpPassword,
-    },
-});
+let transporterPromise;
+
+const createIPv4Transporter = async () => {
+    const smtpHost = process.env.SMTP_HOST;
+    if (!smtpHost || !process.env.SMTP_USER || !smtpPassword) {
+        throw new Error('Missing SMTP_HOST, SMTP_USER or SMTP_PASSWORD');
+    }
+
+    const ipv4Addresses = await dns.promises.resolve4(smtpHost);
+    if (!ipv4Addresses.length) {
+        throw new Error(`No IPv4 address found for SMTP host ${smtpHost}`);
+    }
+
+    const ipv4Address = ipv4Addresses[0];
+    console.log(`SMTP resolved ${smtpHost} to IPv4 ${ipv4Address}`);
+
+    return nodemailer.createTransport({
+        // Use the resolved IPv4 address so Nodemailer cannot select IPv6.
+        host: ipv4Address,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+        tls: {
+            // Keep certificate validation tied to the original SMTP hostname.
+            servername: smtpHost,
+        },
+        auth: {
+            user: process.env.SMTP_USER,
+            pass: smtpPassword,
+        },
+    });
+};
+
+const getTransporter = () => {
+    if (!transporterPromise) {
+        transporterPromise = createIPv4Transporter().catch((error) => {
+            transporterPromise = null;
+            throw error;
+        });
+    }
+
+    return transporterPromise;
+};
 
 const sendMail = async (mailOptions) => {
+    const transporter = await getTransporter();
     const info = await transporter.sendMail(mailOptions);
     console.log('OTP email sent:', {
         to: mailOptions.to,
@@ -109,6 +142,7 @@ const emailService = {
 
     testConnection: async () => {
         try {
+            const transporter = await getTransporter();
             await transporter.verify();
             console.log('Email service connected successfully');
             return true;
