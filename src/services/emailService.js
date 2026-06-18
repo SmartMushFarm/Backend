@@ -1,12 +1,23 @@
+const dns = require('node:dns');
 const nodemailer = require('nodemailer');
+
+// Some deployment environments resolve smtp.gmail.com to IPv6 first even
+// though outbound IPv6 is unavailable. Prefer IPv4 to avoid ENETUNREACH.
+dns.setDefaultResultOrder('ipv4first');
+
+const smtpPort = Number(process.env.SMTP_PORT || 587);
+const smtpPassword = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
 
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
+    port: smtpPort,
+    secure: smtpPort === 465,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
+        pass: smtpPassword,
     },
 });
 
