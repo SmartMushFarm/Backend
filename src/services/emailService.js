@@ -125,7 +125,7 @@ const sendOtpEmail = async (toEmail, otpCode) => {
     );
 
     return sendMail({
-        from: process.env.GMAIL_SENDER,
+        from: `SmartMushFarm <${process.env.GMAIL_SENDER}>`,
         to: toEmail,
         subject: '[SmartMushFarm] Registration OTP',
         ...content,
@@ -140,7 +140,7 @@ const sendForgotPasswordEmail = async (toEmail, otpCode) => {
     );
 
     return sendMail({
-        from: process.env.GMAIL_SENDER,
+        from: `SmartMushFarm <${process.env.GMAIL_SENDER}>`,
         to: toEmail,
         subject: '[SmartMushFarm] Password reset OTP',
         ...content,
@@ -155,7 +155,7 @@ const sendChangePasswordOTP = async (toEmail, otpCode) => {
     );
 
     return sendMail({
-        from: process.env.GMAIL_SENDER,
+        from: `SmartMushFarm <${process.env.GMAIL_SENDER}>`,
         to: toEmail,
         subject: '[SmartMushFarm] Password change OTP',
         ...content,
