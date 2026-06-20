@@ -1,5 +1,6 @@
 const Payment = require('../models/paymentModel');
 const Order = require('../models/orderModel');
+const NotificationService = require('./notificationService');
 
 const createHttpError = (status, message) => {
     const error = new Error(message);
@@ -56,10 +57,27 @@ const paymentService = {
     },
 
     confirm: async (id) => {
+        const existingPayment = await Payment.findById(id);
+        if (!existingPayment) throw createHttpError(404, 'Payment not found');
+        const wasAlreadyPaid = String(existingPayment.payment_status || '').toLowerCase() === 'paid';
+
         const payment = await Payment.confirm(id);
         if (!payment) throw createHttpError(404, 'Payment not found');
         // Update order status to Confirmed
         await Order.updateStatus(payment.order_id, 'Confirmed');
+
+        if (!wasAlreadyPaid && QR_ENABLED_METHODS.includes(payment.payment_method)) {
+            const order = await Order.findById(payment.order_id);
+            if (order) {
+                await NotificationService.sendPaymentConfirmed(order.user_id, {
+                    orderId: payment.order_id,
+                    paymentId: payment.id,
+                    amount: payment.amount,
+                    paymentMethod: payment.payment_method,
+                });
+            }
+        }
+
         return payment;
     },
 

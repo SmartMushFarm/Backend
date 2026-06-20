@@ -3,6 +3,13 @@ const { pool } = require('../config/db');
 
 const DEFAULT_PRESET_NAME = 'Nấm Hương';
 
+const DEVICE_INACTIVE_SECOND_NOTIFICATION_DELAY_MS = 12 * 60 * 60 * 1000; // 12 hours
+const DEVICE_INACTIVE_FIRST_LABEL = '5 phút';
+const DEVICE_INACTIVE_SECOND_LABEL = '12 tiếng';
+
+// Key: deviceId, Value: { firstNotifiedAt: timestamp (ms), sentCount: number }
+const deviceInactiveNotificationState = new Map();
+
 const normalizeStatus = (status) => String(status || '').trim().toLowerCase();
 const normalizeEventKey = (event) => normalizeStatus(event).replace(/[\s_-]+/g, '');
 
@@ -33,6 +40,42 @@ const buildNotificationPayload = ({ userId, deviceId, title, message, type = 'In
     title,
     message,
 });
+
+const formatVndAmount = (amount) => {
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount)) return `${amount} VND`;
+
+    return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        maximumFractionDigits: 0,
+    }).format(numericAmount);
+};
+
+const getDeviceInactiveNotificationLabel = ({ deviceId, reminderOnly }) => {
+    if (!deviceId) return DEVICE_INACTIVE_FIRST_LABEL;
+
+    const now = Date.now();
+    const notificationState = deviceInactiveNotificationState.get(deviceId);
+
+    if (!notificationState) {
+        deviceInactiveNotificationState.set(deviceId, { firstNotifiedAt: now, sentCount: 1 });
+        return reminderOnly ? null : DEVICE_INACTIVE_FIRST_LABEL;
+    }
+
+    if (
+        notificationState.sentCount === 1 &&
+        now - notificationState.firstNotifiedAt >= DEVICE_INACTIVE_SECOND_NOTIFICATION_DELAY_MS
+    ) {
+        deviceInactiveNotificationState.set(deviceId, {
+            ...notificationState,
+            sentCount: 2,
+        });
+        return DEVICE_INACTIVE_SECOND_LABEL;
+    }
+
+    return null;
+};
 
 const getAdminIds = async () => {
     const result = await pool.query(`SELECT id FROM users WHERE LOWER(role) = LOWER($1)`, ['Admin']);
@@ -137,6 +180,25 @@ const NotificationService = {
         }
     },
 
+    sendPaymentConfirmed: async (userId, { orderId, paymentId, amount, paymentMethod } = {}) => {
+        try {
+            const methodLabel = paymentMethod ? ` bằng ${paymentMethod}` : '';
+            const paymentLabel = paymentId ? `Mã thanh toán #${paymentId}. ` : '';
+            await Notification.create(buildNotificationPayload({
+                userId,
+                type: 'Info',
+                title: 'Thanh toán thành công',
+                message: `${paymentLabel}Thanh toán${methodLabel} cho đơn hàng #${orderId} đã được xác nhận (${formatVndAmount(amount)}).`,
+            }));
+        } catch (error) {
+            console.error('Error sending PaymentConfirmed notification:', error);
+        }
+    },
+
+    clearDeviceInactiveNotificationState: (deviceId) => {
+        deviceInactiveNotificationState.delete(deviceId);
+    },
+
     sendDeviceClaimed: async (userId, deviceName, options = {}) => {
         try {
             const normalizedOptions = isPlainObject(options) ? options : {};
@@ -155,12 +217,19 @@ const NotificationService = {
     sendDeviceInactive: async (userId, deviceName, options = {}) => {
         try {
             const normalizedOptions = isPlainObject(options) ? options : {};
-            await Notification.create({
+            const offlineDurationLabel = normalizedOptions.offlineDurationLabel || getDeviceInactiveNotificationLabel({
+                deviceId: normalizedOptions.deviceId,
+                reminderOnly: normalizedOptions.reminderOnly,
+            });
+
+            if (!offlineDurationLabel) return null;
+
+            return await Notification.create({
                 user_id: userId,
                 device_id: normalizedOptions.deviceId || null,
                 type: 'Warning',
                 title: 'Thiết bị mất kết nối',
-                message: `⚠️ Thiết bị '${deviceName}' mất kết nối (Offline 5 phút)`,
+                message: `⚠️ Thiết bị '${deviceName}' mất kết nối (Offline ${offlineDurationLabel})`,
             });
         } catch (error) {
             console.error('Error sending DeviceInactive notification:', error);
