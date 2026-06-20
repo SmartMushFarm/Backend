@@ -1,70 +1,93 @@
-const dns = require('node:dns');
-const nodemailer = require('nodemailer');
+const { google } = require('googleapis');
+const oauth2Client = require('../config/googleAuth');
 
-// Some deployment environments resolve smtp.gmail.com to IPv6 first even
-// though outbound IPv6 is unavailable. Prefer IPv4 to avoid ENETUNREACH.
-dns.setDefaultResultOrder('ipv4first');
+const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-const smtpPort = Number(process.env.SMTP_PORT || 587);
-const smtpPassword = (process.env.SMTP_PASSWORD || '').replace(/\s+/g, '');
+const requiredEnvVars = [
+    'GMAIL_CLIENT_ID',
+    'GMAIL_CLIENT_SECRET',
+    'GMAIL_REFRESH_TOKEN',
+    'GMAIL_SENDER',
+];
 
-let transporterPromise;
+const validateEmailConfig = () => {
+    const missingVars = requiredEnvVars.filter((key) => !process.env[key]);
 
-const createIPv4Transporter = async () => {
-    const smtpHost = process.env.SMTP_HOST;
-    if (!smtpHost || !process.env.SMTP_USER || !smtpPassword) {
-        throw new Error('Missing SMTP_HOST, SMTP_USER or SMTP_PASSWORD');
+    if (missingVars.length) {
+        throw new Error(`Missing Gmail OAuth2 environment variables: ${missingVars.join(', ')}`);
     }
-
-    const ipv4Addresses = await dns.promises.resolve4(smtpHost);
-    if (!ipv4Addresses.length) {
-        throw new Error(`No IPv4 address found for SMTP host ${smtpHost}`);
-    }
-
-    const ipv4Address = ipv4Addresses[0];
-    console.log(`SMTP resolved ${smtpHost} to IPv4 ${ipv4Address}`);
-
-    return nodemailer.createTransport({
-        // Use the resolved IPv4 address so Nodemailer cannot select IPv6.
-        host: ipv4Address,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-        tls: {
-            // Keep certificate validation tied to the original SMTP hostname.
-            servername: smtpHost,
-        },
-        auth: {
-            user: process.env.SMTP_USER,
-            pass: smtpPassword,
-        },
-    });
 };
 
-const getTransporter = () => {
-    if (!transporterPromise) {
-        transporterPromise = createIPv4Transporter().catch((error) => {
-            transporterPromise = null;
-            throw error;
-        });
+const encodeBase64Url = (input) => {
+    return Buffer.from(input)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+};
+
+const encodeMimeWord = (value) => {
+    return `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`;
+};
+
+const getAccessToken = async () => {
+    validateEmailConfig();
+
+    const accessTokenResponse = await oauth2Client.getAccessToken();
+    const accessToken = accessTokenResponse && accessTokenResponse.token
+        ? accessTokenResponse.token
+        : accessTokenResponse;
+
+    if (!accessToken) {
+        throw new Error('Unable to get Gmail OAuth2 access token');
     }
 
-    return transporterPromise;
+    return accessToken;
 };
 
 const sendMail = async (mailOptions) => {
-    const transporter = await getTransporter();
-    const info = await transporter.sendMail(mailOptions);
-    console.log('OTP email sent:', {
-        to: mailOptions.to,
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
-        response: info.response,
-    });
-    return info;
+    try {
+        await getAccessToken();
+
+        const boundary = 'boundary_' + Date.now();
+        const messageParts = [
+            `From: ${mailOptions.from}`,
+            `To: ${mailOptions.to}`,
+            `Subject: ${encodeMimeWord(mailOptions.subject)}`,
+            'MIME-Version: 1.0',
+            `Content-Type: multipart/alternative; boundary="${boundary}"`,
+            '',
+            `--${boundary}`,
+            'Content-Type: text/plain; charset=UTF-8',
+            '',
+            mailOptions.text,
+            '',
+            `--${boundary}`,
+            'Content-Type: text/html; charset=UTF-8',
+            '',
+            mailOptions.html,
+            '',
+            `--${boundary}--`,
+        ];
+        const rawMessage = messageParts.join('\n');
+        const encodedMessage = encodeBase64Url(rawMessage);
+
+        const result = await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: { raw: encodedMessage },
+        });
+
+        console.log('Email sent, message ID:', result.data.id);
+        return result.data;
+    } catch (error) {
+        console.error('Gmail API send error:', {
+            message: error.message,
+            code: error.code,
+            status: error.status,
+            response: error.response && error.response.data,
+        });
+        throw error;
+    }
 };
 
 const buildOTPContent = (title, description, otp) => {
@@ -94,63 +117,72 @@ const buildOTPContent = (title, description, otp) => {
     };
 };
 
-const emailService = {
-    sendRegistrationOTP: async (email, otp) => {
-        const content = buildOTPContent(
-            'SmartMushFarm account registration',
-            'Thank you for registering a SmartMushFarm account.',
-            otp
-        );
+const sendOtpEmail = async (toEmail, otpCode) => {
+    const content = buildOTPContent(
+        'SmartMushFarm account registration',
+        'Thank you for registering a SmartMushFarm account.',
+        otpCode
+    );
 
-        return sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: email,
-            subject: '[SmartMushFarm] Registration OTP',
-            ...content,
-        });
-    },
-
-    sendForgotPasswordOTP: async (email, otp) => {
-        const content = buildOTPContent(
-            'SmartMushFarm password reset',
-            'We received a request to reset the password for your SmartMushFarm account.',
-            otp
-        );
-
-        return sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: email,
-            subject: '[SmartMushFarm] Password reset OTP',
-            ...content,
-        });
-    },
-
-    sendChangePasswordOTP: async (email, otp) => {
-        const content = buildOTPContent(
-            'SmartMushFarm password change',
-            'We received a request to change the password for your SmartMushFarm account.',
-            otp
-        );
-
-        return sendMail({
-            from: process.env.SMTP_FROM || process.env.SMTP_USER,
-            to: email,
-            subject: '[SmartMushFarm] Password change OTP',
-            ...content,
-        });
-    },
-
-    testConnection: async () => {
-        try {
-            const transporter = await getTransporter();
-            await transporter.verify();
-            console.log('Email service connected successfully');
-            return true;
-        } catch (error) {
-            console.error('Email service connection failed:', error);
-            return false;
-        }
-    },
+    return sendMail({
+        from: process.env.GMAIL_SENDER,
+        to: toEmail,
+        subject: '[SmartMushFarm] Registration OTP',
+        ...content,
+    });
 };
 
-module.exports = emailService;
+const sendForgotPasswordEmail = async (toEmail, otpCode) => {
+    const content = buildOTPContent(
+        'SmartMushFarm password reset',
+        'We received a request to reset the password for your SmartMushFarm account.',
+        otpCode
+    );
+
+    return sendMail({
+        from: process.env.GMAIL_SENDER,
+        to: toEmail,
+        subject: '[SmartMushFarm] Password reset OTP',
+        ...content,
+    });
+};
+
+const sendChangePasswordOTP = async (toEmail, otpCode) => {
+    const content = buildOTPContent(
+        'SmartMushFarm password change',
+        'We received a request to change the password for your SmartMushFarm account.',
+        otpCode
+    );
+
+    return sendMail({
+        from: process.env.GMAIL_SENDER,
+        to: toEmail,
+        subject: '[SmartMushFarm] Password change OTP',
+        ...content,
+    });
+};
+
+const testConnection = async () => {
+    try {
+        await getAccessToken();
+        console.log('Email service OAuth2 access token fetched successfully');
+        return true;
+    } catch (error) {
+        console.error('Gmail API connection test failed:', {
+            message: error.message,
+            code: error.code,
+            status: error.status,
+            response: error.response && error.response.data,
+        });
+        return false;
+    }
+};
+
+module.exports = {
+    sendOtpEmail,
+    sendForgotPasswordEmail,
+    sendRegistrationOTP: sendOtpEmail,
+    sendForgotPasswordOTP: sendForgotPasswordEmail,
+    sendChangePasswordOTP,
+    testConnection,
+};
