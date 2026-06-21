@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
+const { pool } = require('../config/db');
 const otpService = require('./otpService');
 const emailService = require('./emailService');
 
@@ -18,6 +19,21 @@ const createHttpError = (status, message) => {
     error.status = status;
     return error;
 };
+
+const rollbackTransaction = async (client) => {
+    try {
+        await client.query('ROLLBACK');
+    } catch (rollbackError) {
+        console.error('Error rolling back transaction:', rollbackError);
+    }
+};
+
+const buildEmailDeliveryResponse = (emailDelivery) => ({
+    message_id: emailDelivery.messageId,
+    accepted: emailDelivery.accepted || [],
+    rejected: emailDelivery.rejected || [],
+    response: emailDelivery.response,
+});
 
 const allowedRoles = ['Customer', 'Admin', 'Technician'];
 
@@ -237,45 +253,77 @@ const authService = {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // If user exists but not verified, update them
-        if (existingUser && !existingUser.is_email_verified) {
-            const updatedUser = await User.saveOTP(email, otpData);
-            // Also update password in temp user
-            await User.updatePassword(existingUser.id, hashedPassword);
-        } else {
-            // Create new user with OTP
-            const userData = {
-                name,
-                email,
-                password: hashedPassword,
-                phone,
-                address,
-                role: 'user',
-                status: 'Active',
-                is_email_verified: false,
-            };
-            await User.create(userData);
-            await User.saveOTP(email, otpData);
-        }
-
-        // Send OTP via email
         let emailDelivery;
+        const client = await pool.connect();
         try {
+            await client.query('BEGIN');
+
+            if (existingUser && !existingUser.is_email_verified) {
+                await client.query(
+                    `
+                        UPDATE users
+                        SET password = $1,
+                            otp_code = $2,
+                            otp_expires_at = $3,
+                            otp_type = $4
+                        WHERE id = $5
+                    `,
+                    [
+                        hashedPassword,
+                        otpData.otp_code,
+                        otpData.otp_expires_at,
+                        otpData.otp_type,
+                        existingUser.id,
+                    ]
+                );
+            } else {
+                await client.query(
+                    `
+                        INSERT INTO users (
+                            name,
+                            email,
+                            password,
+                            phone,
+                            address,
+                            role,
+                            status,
+                            is_email_verified,
+                            otp_code,
+                            otp_expires_at,
+                            otp_type
+                        )
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    `,
+                    [
+                        name,
+                        email,
+                        hashedPassword,
+                        phone || null,
+                        address || null,
+                        'Customer',
+                        'Active',
+                        false,
+                        otpData.otp_code,
+                        otpData.otp_expires_at,
+                        otpData.otp_type,
+                    ]
+                );
+            }
+
             emailDelivery = await emailService.sendRegistrationOTP(email, otpData.otp_code);
+            await client.query('COMMIT');
         } catch (error) {
+            await rollbackTransaction(client);
             console.error('Error sending OTP email:', error);
             throw createHttpError(500, 'Failed to send OTP email');
+        } finally {
+            client.release();
         }
 
         return {
             message: 'OTP has been sent to your email',
             email: email,
-            email_delivery: {
-                message_id: emailDelivery.messageId,
-                accepted: emailDelivery.accepted || [],
-                rejected: emailDelivery.rejected || [],
-                response: emailDelivery.response,
-            },
+            email_delivery: buildEmailDeliveryResponse(emailDelivery),
         };
     },
 
@@ -325,26 +373,42 @@ const authService = {
 
         // Generate OTP for password reset
         const otpData = otpService.generateOTPData('forgot_password');
-        await User.saveOTP(email, otpData);
 
-        // Send OTP via email
         let emailDelivery;
+        const client = await pool.connect();
         try {
+            await client.query('BEGIN');
+
+            await client.query(
+                `
+                    UPDATE users
+                    SET otp_code = $1,
+                        otp_expires_at = $2,
+                        otp_type = $3
+                    WHERE LOWER(email) = LOWER($4)
+                `,
+                [
+                    otpData.otp_code,
+                    otpData.otp_expires_at,
+                    otpData.otp_type,
+                    email,
+                ]
+            );
+
             emailDelivery = await emailService.sendForgotPasswordOTP(email, otpData.otp_code);
+            await client.query('COMMIT');
         } catch (error) {
+            await rollbackTransaction(client);
             console.error('Error sending OTP email:', error);
             throw createHttpError(500, 'Failed to send OTP email');
+        } finally {
+            client.release();
         }
 
         return {
             message: 'OTP has been sent to your email',
             email: email,
-            email_delivery: {
-                message_id: emailDelivery.messageId,
-                accepted: emailDelivery.accepted || [],
-                rejected: emailDelivery.rejected || [],
-                response: emailDelivery.response,
-            },
+            email_delivery: buildEmailDeliveryResponse(emailDelivery),
         };
     },
 
@@ -391,26 +455,42 @@ const authService = {
 
         // Generate OTP for password change
         const otpData = otpService.generateOTPData('change_password');
-        await User.saveOTP(user.email, otpData);
 
-        // Send OTP via email
         let emailDelivery;
+        const client = await pool.connect();
         try {
+            await client.query('BEGIN');
+
+            await client.query(
+                `
+                    UPDATE users
+                    SET otp_code = $1,
+                        otp_expires_at = $2,
+                        otp_type = $3
+                    WHERE LOWER(email) = LOWER($4)
+                `,
+                [
+                    otpData.otp_code,
+                    otpData.otp_expires_at,
+                    otpData.otp_type,
+                    user.email,
+                ]
+            );
+
             emailDelivery = await emailService.sendChangePasswordOTP(user.email, otpData.otp_code);
+            await client.query('COMMIT');
         } catch (error) {
+            await rollbackTransaction(client);
             console.error('Error sending OTP email:', error);
             throw createHttpError(500, 'Failed to send OTP email');
+        } finally {
+            client.release();
         }
 
         return {
             message: 'OTP has been sent to your email',
             email: user.email,
-            email_delivery: {
-                message_id: emailDelivery.messageId,
-                accepted: emailDelivery.accepted || [],
-                rejected: emailDelivery.rejected || [],
-                response: emailDelivery.response,
-            },
+            email_delivery: buildEmailDeliveryResponse(emailDelivery),
         };
     },
 
