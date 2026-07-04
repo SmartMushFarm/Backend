@@ -254,7 +254,7 @@ const deviceService = {
                 const presetScheduler = require('./presetSchedulerService');
                 presetScheduler.stopDevicePresetJob(id);
                 const autoControl = require('./autoControlService');
-                autoControl.clearAllOverrides(targetDevice.device_name);
+                autoControl.clearAllOverrides(device.device_name);
             }
         } catch (e) {
             console.error('Failed to stop preset scheduler on mode change:', e.message || e);
