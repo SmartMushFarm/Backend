@@ -13,6 +13,23 @@ const assertOwner = (device, userId, role) => {
     if (role !== 'Admin' && device.owner_id !== userId) throw createHttpError(403, 'Forbidden');
 };
 
+// Lock map to prevent race condition when saving MQTT sensor data
+const deviceLocks = new Map();
+
+const acquireLock = async (deviceId, timeoutMs = 5000) => {
+    const start = Date.now();
+    while (deviceLocks.has(deviceId)) {
+        if (Date.now() - start > timeoutMs) return false;
+        await new Promise(r => setTimeout(r, 50));
+    }
+    deviceLocks.set(deviceId, true);
+    return true;
+};
+
+const releaseLock = (deviceId) => {
+    deviceLocks.delete(deviceId);
+};
+
 const deviceService = {
     getMyDevices: async (userId) => Device.findByUserId(userId),
 
@@ -111,63 +128,73 @@ const deviceService = {
         const heaterStatus = outputStatus.heater ?? false;
         const lightStatus = outputStatus.light ?? false;
 
-                // Throttle history writes: only save history every 15 seconds per device
-                if (!deviceService._lastHistorySavedAt) deviceService._lastHistorySavedAt = new Map();
-                const lastAt = deviceService._lastHistorySavedAt.get(device.id) || 0;
-                const now = Date.now();
+        // Acquire lock to prevent race condition
+        const locked = await acquireLock(device.id);
+        if (!locked) {
+            console.log('Could not acquire lock for device', device.id, '- skipping');
+            return null;
+        }
 
-                let history = null;
-                let updatedDevice = null;
+        try {
+            // Throttle history writes: only save history every 15 seconds per device
+            if (!deviceService._lastHistorySavedAt) deviceService._lastHistorySavedAt = new Map();
+            const lastAt = deviceService._lastHistorySavedAt.get(device.id) || 0;
+            const now = Date.now();
 
-                // only persist history every 30 seconds per device
-                if (now - lastAt >= 30000) {
-                    // Deduplicate: check last saved history for this device to avoid near-duplicate rows
-                    try {
-                        const latest = await historyModel.getLatestHistoryByDeviceId(device.id);
-                        if (latest) {
-                            const latestTime = new Date(latest.created_at).getTime();
-                            const tempEqual = Number(latest.temperature) === temperature;
-                            const humEqual = Number(latest.humidity) === humidity;
-                            // If latest entry is within 2s and values equal, skip creating duplicate
-                            if (Math.abs(now - latestTime) < 2000 && tempEqual && humEqual) {
-                                // update device snapshot but skip history insert
-                                updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
-                                deviceService._lastHistorySavedAt.set(device.id, now);
-                            } else {
-                                history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
-                                updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
-                                deviceService._lastHistorySavedAt.set(device.id, now);
-                            }
+            let history = null;
+            let updatedDevice = null;
+
+            // only persist history every 30 seconds per device
+            if (now - lastAt >= 30000) {
+                // Deduplicate: check last saved history for this device to avoid near-duplicate rows
+                try {
+                    const latest = await historyModel.getLatestHistoryByDeviceId(device.id);
+                    if (latest) {
+                        const latestTime = new Date(latest.created_at).getTime();
+                        const tempEqual = Number(latest.temperature) === temperature;
+                        const humEqual = Number(latest.humidity) === humidity;
+                        // If latest entry is within 2s and values equal, skip creating duplicate
+                        if (Math.abs(now - latestTime) < 2000 && tempEqual && humEqual) {
+                            // update device snapshot but skip history insert
+                            updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                            deviceService._lastHistorySavedAt.set(device.id, now);
                         } else {
                             history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
                             updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
                             deviceService._lastHistorySavedAt.set(device.id, now);
                         }
-                    } catch (e) {
-                        // on error, fallback to naive insert to avoid losing data
+                    } else {
                         history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
                         updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
                         deviceService._lastHistorySavedAt.set(device.id, now);
                     }
-                } else {
-                    // Always update device snapshot to reflect the latest ESP32 reading,
-                    // even if we skip writing history. This keeps current_temperature/current_humidity up-to-date.
+                } catch (e) {
+                    // on error, fallback to naive insert to avoid losing data
+                    history = await historyModel.createHistory({ deviceId: device.id, temperature, humidity, mistStatus, fanStatus, heaterStatus, lightStatus });
                     updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
+                    deviceService._lastHistorySavedAt.set(device.id, now);
                 }
-
-        // Auto control: only when device in Auto mode and has preset_id
-        try {
-            if (updatedDevice && updatedDevice.mode === 'Auto' && updatedDevice.preset_id) {
-                const preset = await Preset.findById(updatedDevice.preset_id);
-                if (preset) {
-                    // fire-and-forget; lazy-require to avoid circular dependency
-                    const autoControl = require('./autoControlService');
-                    autoControl.handleAutoControl({ device: updatedDevice, preset, temperature, humidity });
-                }
+            } else {
+                // Always update device snapshot to reflect the latest ESP32 reading,
+                // even if we skip writing history. This keeps current_temperature/current_humidity up-to-date.
+                updatedDevice = await Device.updateDeviceFromSensor({ id: device.id, currentHumidity: humidity, currentTemperature: temperature, mistStatus, fanStatus, heaterStatus, lightStatus, status: 'Active' });
             }
-        } catch (e) { /* ignore auto control errors */ }
 
-        return { history, device: updatedDevice };
+            // Auto control: only when device in Auto mode and has preset_id
+            if (updatedDevice && updatedDevice.mode === 'Auto' && updatedDevice.preset_id) {
+                try {
+                    const preset = await Preset.findById(updatedDevice.preset_id);
+                    if (preset) {
+                        const autoControl = require('./autoControlService');
+                        autoControl.handleAutoControl({ device: updatedDevice, preset, temperature, humidity });
+                    }
+                } catch (e) { /* ignore auto control errors */ }
+            }
+
+            return { history, device: updatedDevice };
+        } finally {
+            releaseLock(device.id);
+        }
     },
 
     // MQTT: save output status from IoT device by device_name
