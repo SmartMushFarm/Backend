@@ -190,7 +190,9 @@ const Device = {
         if (from) { values.push(from); conditions.push(`created_at >= $${values.length}`); }
         if (to) { values.push(to); conditions.push(`created_at <= $${values.length}`); }
         const result = await pool.query(
-            `SELECT * FROM history WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT 500`,
+            `SELECT id, device_id, temperature, humidity, mist_status, fan_status, heater_status, light_status,
+                    (created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') as created_at
+             FROM history WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT 500`,
             values
         );
         return result.rows;
