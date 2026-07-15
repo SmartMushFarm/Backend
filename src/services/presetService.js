@@ -17,13 +17,25 @@ const presetService = {
         return Preset.create(payload);
     },
 
-    update: async (id, data) => {
+    update: async (id, data, user) => {
+        // Check ownership: only Admin or the creator can update
+        const existing = await Preset.findById(id);
+        if (!existing) throw createHttpError(404, 'Preset not found');
+        if (user.role !== 'Admin' && existing.created_by !== user.id) {
+            throw createHttpError(403, 'Forbidden: you can only edit your own presets');
+        }
         const preset = await Preset.update(id, data);
         if (!preset) throw createHttpError(404, 'Preset not found');
         return preset;
     },
 
-    delete: async (id) => {
+    delete: async (id, user) => {
+        // Check ownership: only Admin or the creator can delete
+        const existing = await Preset.findById(id);
+        if (!existing) throw createHttpError(404, 'Preset not found');
+        if (user.role !== 'Admin' && existing.created_by !== user.id) {
+            throw createHttpError(403, 'Forbidden: you can only delete your own presets');
+        }
         const preset = await Preset.delete(id);
         if (!preset) throw createHttpError(404, 'Preset not found');
         return preset;
