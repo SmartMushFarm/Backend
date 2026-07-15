@@ -78,7 +78,8 @@ router.post('/', authMiddleware, roleMiddleware('Admin', 'Customer'), presetCont
  *       200:
  *         description: Preset updated
  */
-router.put('/:id', authMiddleware, roleMiddleware('Admin'), presetController.update);
+// Admin can update any preset; Customer can update their own (ownership check in service)
+router.put('/:id', authMiddleware, roleMiddleware('Admin', 'Customer'), presetController.update);
 
 /**
  * @openapi
@@ -98,6 +99,7 @@ router.put('/:id', authMiddleware, roleMiddleware('Admin'), presetController.upd
  *       200:
  *         description: Preset deleted
  */
-router.delete('/:id', authMiddleware, roleMiddleware('Admin'), presetController.delete);
+// Admin can delete any preset; Customer can delete their own (ownership check in service)
+router.delete('/:id', authMiddleware, roleMiddleware('Admin', 'Customer'), presetController.delete);
 
 module.exports = router;

@@ -13,11 +13,11 @@ const presetController = {
         catch (e) { return sendError(res, e); }
     },
     update: async (req, res) => {
-        try { return res.json({ success: true, data: await presetService.update(req.params.id, req.body) }); }
+        try { return res.json({ success: true, data: await presetService.update(req.params.id, req.body, req.user) }); }
         catch (e) { return sendError(res, e); }
     },
     delete: async (req, res) => {
-        try { return res.json({ success: true, message: 'Preset deleted', data: await presetService.delete(req.params.id) }); }
+        try { return res.json({ success: true, message: 'Preset deleted', data: await presetService.delete(req.params.id, req.user) }); }
         catch (e) { return sendError(res, e); }
     },
     applyToDevice: async (req, res) => {
